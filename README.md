@@ -1,6 +1,6 @@
 # R_Unet
 This is a on going project applying recurrent method upon U-net to perform video frame prediction </br>
-
+.._GPU for GPU virsion </br>
 
 to execute: python train.py config </br>
 with purposed network:
