@@ -15,6 +15,9 @@ import time
 args = parse_argument.argrements()
 video_path = args.videopath
 step = int(args.step)
+gray_scale_bol = bool(args.gray_scale)
+
+save_img = True
 
 # enumerate photos (frames) in a diractory and save names in list: files
 frame_paths = []
@@ -25,23 +28,12 @@ for r, d, f in os.walk(video_path):
             frame_paths.append(filepath)
 
 frame_numbers = len(frame_paths)
-'''
-pic = cv.imread(frame_paths[10])
-print(pic.shape)
-r_pic = cv.resize(pic, (256,256), interpolation=cv.INTER_CUBIC )
-print(r_pic.shape)
-'''
-'''
-test, target = load_pic( 4, frame_paths )
-cv.imshow( 'target', tensor_to_pic(target) )
-cv.waitKey()
-exit()
-'''
+
 ## ste gpu, set mete info, check gpu, define network, 
 gpus = [0]
 start_date = str(datetime.datetime.now())[0:10]
 cuda_gpu = torch.cuda.is_available()
-network = net.unet()
+network = net.unet(Gary_Scale = gray_scale_bol)
 
 ## check gpu status
 if( cuda_gpu ):
@@ -52,7 +44,7 @@ pytorch_total_params = sum(p.numel() for p in network.parameters())
 print("number of parameters:", pytorch_total_params)
 
 # set parameters
-optimizer = optim.Adam( network.parameters(), lr = 0.0001 )
+optimizer = optim.Adam( network.parameters(), lr = 0.001 )
 critiria = nn.SmoothL1Loss()
 #critiria = nn.MSELoss()
 
@@ -67,14 +59,18 @@ for epochs in range(0, 200):
         optimizer.zero_grad()
 
         # load picture, step = pic num
-        test, target = load_pic( steps, frame_paths )
+        test, target = load_pic( steps, frame_paths, gray_scale=gray_scale_bol )
         if cuda_gpu:
             test = test.cuda()
             target = target.cuda()
 
         # Reshape and Forward propagation
         #test = unet_model.reshape(test)
-        output, buffer = network.forward(test, buffer)
+        # pass in buffer with length = steps-1, concatenate latent feature to buffer in network  
+        output, l_feature = network.forward(test, buffer)
+
+        # update buffer
+        buffer = buf_update( l_feature, buffer, 6 )
 
         # Calculate loss
         #loss = critiria( Variable(output.long()),  Variable(target.long()))
@@ -84,10 +80,17 @@ for epochs in range(0, 200):
         loss_value =  float( loss.item() )
         string = 'epoch_' + str(epochs) + '_step_' + str(steps) 
         loss_list.append( [ string, loss_value ])
-        write_csv_file( './output/'+ start_date +'_loss_record.csv', loss_list )
+
+        # save img
+        if save_img == True :
+            output_img = tensor_to_pic(output, gray_scale=gray_scale_bol)
+            output_img_name = './output_img2/' + str(start_date) + '_' + str(epochs) + '_' + str(steps) +'_2output.jpg' 
+            ## input_img = tensor_to_pic(test, , gray_scale=gray_scale_bol)
+            cv.imwrite(str(output_img_name), output_img)
+            #cv.imwrite('color_img_test.jpg', input_img)
 
         # Backward propagation
-        loss.backward(retain_graph=True)
+        loss.backward(retain_graph = True)
 
         end_time = time.time()
         elapse_time = round((end_time - start_time), 2)
@@ -100,13 +103,15 @@ for epochs in range(0, 200):
             test = test.cpu()
             target = target.cpu()
 
-        if ((steps+1) % 10 == 0):
+        if (((steps+1) % 10 ) == 0):
             # transfer output from tensor to image
-            out_img = tensor_to_pic( output )  
+            # out_img = tensor_to_pic( output )  
             # save image
-            save_string = './Output_img/' + str(epochs) + '_' + str( frame_paths[steps][len(frame_paths[steps])-7:] ) 
-            cv.imwrite(save_string , out_img)
+            # save_string = './Output_img/' + str(epochs) + '_' + str( frame_paths[steps][len(frame_paths[steps])-7:] ) 
+            # cv.imwrite(save_string , out_img)
             # save model
-            path = os.getcwd() + '/model1/epoch_' + str(epochs) +"_step_" + str(steps) + '_R_Unet.pt'
+            path = os.getcwd() + '/model1/' + start_date + 'epoch_' + str(epochs) +"_step_" + str(steps) + '_R_Unet.pt'
             torch.save(network.state_dict(), path)
             print('save model to:', path)
+    # log loss after each epoch
+    write_csv_file( './output/'+ start_date +'_loss_record.csv', loss_list )
