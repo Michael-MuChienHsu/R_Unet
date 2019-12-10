@@ -1,4 +1,5 @@
 {   
     "videopath" : "./origami_single/",
-    "step" : "6"
+    "step" : "6",
+    "gray_scale": "True"
 }
