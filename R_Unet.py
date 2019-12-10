@@ -1,6 +1,9 @@
 ## Recurrent U-net, with LSTM
 ## D4 step = 6
 
+## Future plan: multi-layer LSTM, now 2 layer LSTM
+## Conv_LSTM
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -39,8 +42,14 @@ class Up_Layer(nn.Sequential):
         self.ch_out = ch_out
         self.layer = self.define_layer( )
 
+        self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
+        # add 0 padding on right and down to keep shape the same
+        self.pad = nn.ConstantPad2d( (0, 1, 0, 1), 0 )
+        self.degradation = nn.Conv2d( self.ch_in, self.ch_out, kernel_size=2 )
+
     def define_layer(self):
         use_bias = True
+        pad = nn.ConstantPad2d( (0, 1, 0, 1), 0 )
 
         model = []
         model += [  nn.Conv2d( self.ch_in, self.ch_out, kernel_size=3, padding=1, bias=use_bias),
@@ -51,36 +60,45 @@ class Up_Layer(nn.Sequential):
         return nn.Sequential(*model)
 
     def forward(self, x, resx):
-        upsample = nn.UpsamplingBilinear2d(scale_factor=2)
-        # add 0 padding on right and down to keep shape the same
-        pad = nn.ConstantPad2d( (0, 1, 0, 1), 0 )
-        degradation = nn.Conv2d( self.ch_in, self.ch_out, kernel_size=2 )
-
-        x = upsample(x)
-        x = pad( x )
-        x = degradation(x)
+        x = self.upsample(x)
+        x = self.pad( x )
+        x = self.degradation(x)
         x = torch.cat((x, resx), dim = 1)
         out = self.layer(x)
         return out
 
 class recurrent_network(nn.Sequential):
-    def __init__(self, hidden_layers):
+    def __init__(self, hidden_layers, use_buffer = False):
         super(recurrent_network, self).__init__()
+        self.use_buffer = use_buffer
         self.rnn = nn.LSTM(16, 16)
         self.hidden = hidden_layers
+        self.our_put_buffer = []
 
     def forward(self, x):
-        for i in x:
-        # Step through the sequence one element at a time.
-        # after each step, hidden contains the hidden state.
-            out, self.hidden = self.rnn(i, self.hidden)
-        return out
+        if self.use_buffer == False:
+            for i in x:
+            # Step through the sequence one element at a time.
+            # after each step, hidden contains the hidden state.
+                out, self.hidden = self.rnn(i, self.hidden)
+                
+            return out
+        else:
+            self.our_put_buffer = []
+            for i in x:
+            # Step through the sequence one element at a time.
+            # after each step, hidden contains the hidden state.
+                out, self.hidden = self.rnn(i, self.hidden)
+                self.our_put_buffer.append(out)
+            return self.our_put_buffer
     
 class unet(nn.Module):
-    def __init__(self, tot_frame_num = 100, length = 6):
+    def __init__(self, tot_frame_num = 100, length = 6, Gary_Scale = False):
         super( unet, self ).__init__()
         self.lstm_buf = []
         self.hidden = (torch.zeros(1, 16, 16),  # (hidden_layer num, second_dim, output channel)
+                       torch.zeros(1, 16, 16))
+        self.hidden2 = (torch.zeros(1, 16, 16),  # (hidden_layer num, second_dim, output channel)
                        torch.zeros(1, 16, 16))
         self.step = length
         self.max_pool = nn.MaxPool2d(2)
@@ -88,9 +106,13 @@ class unet(nn.Module):
         self.one_conv1 = nn.Conv2d( 1024, 512, kernel_size=1, bias=True)
         self.one_conv2 = nn.Conv2d( 1024, 512, kernel_size=1, bias=True)
 
-        self.rnn = recurrent_network( self.hidden )
+        self.rnn = recurrent_network( self.hidden, use_buffer = True )
+        self.rnn2 = recurrent_network( self.hidden2 )
 
         self.down1 = Down_Layer( 3, 64 )
+        if Gary_Scale == True:
+            self.down1 = Down_Layer(1, 64)
+
         self.down2 = Down_Layer( 64, 128 )
         self.down3 = Down_Layer( 128, 256 )
         self.down4 = Down_Layer( 256, 512 )
@@ -101,7 +123,10 @@ class unet(nn.Module):
         self.up3 = Up_Layer(256, 128)
         self.up4 = Up_Layer(128, 64)
         self.up5 = nn.Conv2d( 64, 3, kernel_size = 1 )
-    
+        if Gary_Scale == True:
+            self.up5 = nn.Conv2d( 64, 1, kernel_size = 1 )
+    '''
+    ## move to utils
     def buffer_update(self, latent_feature):
         if len(self.lstm_buf) == self.step:
             for i in range(0, self.step-1):
@@ -109,8 +134,10 @@ class unet(nn.Module):
             self.lstm_buf[self.step-1] = latent_feature
         else:
             self.lstm_buf.append( latent_feature )
+    '''
+    def forward(self, x, buffer):
+        self.lstm_buf = buffer.copy()
 
-    def forward(self, x):
         x1 = self.down1(x)
         x2 = self.max_pool(x1)
         
@@ -126,10 +153,12 @@ class unet(nn.Module):
         x5 = self.down5(x5)
 
         latent_feature = x5.view(-1, 16, 16)
-        self.buffer_update(latent_feature)
-
+        self.lstm_buf.append( latent_feature )
+        print( len( self.lstm_buf ) )
+        # LSTM unit
         if len( self.lstm_buf ) > 1 :
             lstm_output = self.rnn(self.lstm_buf)
+            lstm_output = self.rnn2( lstm_output )
             lstm_output = lstm_output.view(1, 1024, 16, 16)
         
         # use x5 to perform lstm
@@ -144,7 +173,7 @@ class unet(nn.Module):
         x = self.up4( x, x1 )
         x = F.relu(self.up5( x ))
 
-        return x
+        return x, latent_feature
 
 """
 ## testing code
@@ -181,7 +210,7 @@ def train():
             loss = critiria(output, target)
 
             # Backward propagation
-            loss.backward(retain_graph=True)
+            loss.backward(retain_graph = False)
 
             # Update the gradients
             optimizer.step()
@@ -209,4 +238,3 @@ def testing(path):
 
 if __name__ == "__main__":
     train()
-    
