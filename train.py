@@ -10,23 +10,20 @@ import os
 import csv
 import datetime
 import time
+import psutil
+import gc
 
 # set arguements
 args = parse_argument.argrements()
 video_path = args.videopath
+learn_rate = float(args.lr)
 step = int(args.step)
 gray_scale_bol = bool(args.gray_scale)
 
 save_img = True
 
 # enumerate photos (frames) in a diractory and save names in list: files
-frame_paths = []
-for r, d, f in os.walk(video_path):
-    for file in f:
-        if ".jpg" in file:
-            filepath = video_path + file
-            frame_paths.append(filepath)
-
+frame_paths = get_file_path(video_path)
 frame_numbers = len(frame_paths)
 
 ## ste gpu, set mete info, check gpu, define network, 
@@ -43,8 +40,11 @@ if( cuda_gpu ):
 pytorch_total_params = sum(p.numel() for p in network.parameters())
 print("number of parameters:", pytorch_total_params)
 
+## GC memory 
+gc.enable()
+
 # set parameters
-optimizer = optim.Adam( network.parameters(), lr = 0.001 )
+optimizer = optim.Adam( network.parameters(), lr = learn_rate )
 critiria = nn.SmoothL1Loss()
 #critiria = nn.MSELoss()
 
@@ -88,6 +88,8 @@ for epochs in range(0, 200):
             ## input_img = tensor_to_pic(test, , gray_scale=gray_scale_bol)
             cv.imwrite(str(output_img_name), output_img)
             #cv.imwrite('color_img_test.jpg', input_img)
+            del output_img
+            del output_img_name
 
         # Backward propagation
         loss.backward(retain_graph = True)
@@ -98,10 +100,18 @@ for epochs in range(0, 200):
         print('epoch', epochs, 'step', steps, "loss:", loss, 'time_used', elapse_time)
         # Update the gradients
         optimizer.step()
+        
+        # print memory used
+        process = psutil.Process(os.getpid())
+        print('used memory', round((int(process.memory_info().rss)/(1024*1024)), 2), 'MB' )
 
         if cuda_gpu:
             test = test.cpu()
             target = target.cpu()
+
+        del test
+        del target
+        gc.collect()
 
         if (((steps+1) % 10 ) == 0):
             # transfer output from tensor to image
@@ -113,5 +123,9 @@ for epochs in range(0, 200):
             path = os.getcwd() + '/model1/' + start_date + 'epoch_' + str(epochs) +"_step_" + str(steps) + '_R_Unet.pt'
             torch.save(network.state_dict(), path)
             print('save model to:', path)
+
     # log loss after each epoch
     write_csv_file( './output/'+ start_date +'_loss_record.csv', loss_list )
+
+    if cuda_gpu:
+        torch.cuda.empty_cache()
