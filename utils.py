@@ -23,6 +23,15 @@ def pic_normalize(pic):
 
     return pic
 
+def get_file_path(video_path):
+    frame_paths = []
+    for r, d, f in os.walk(video_path):
+        for file in f:
+            if ".jpg" in file:
+                filepath = video_path + file
+                frame_paths.append(filepath)
+    return frame_paths
+
 def load_pic(f_num, f_path, normalize = False, gray_scale = False):
     path_in = f_path[f_num]
     path_target = f_path[f_num+1]
@@ -91,15 +100,16 @@ if __name__ == "__main__":
             if ".jpg" in file:
                 filepath = "./origami_single/" + file
                 frame_paths.append(filepath)
-    test, target = load_pic( 1, frame_paths, normalize=True, gray_scale=True )
+
     # test gray scale
+    test, target = load_pic( 1, frame_paths, normalize=True, gray_scale=True )
     img = tensor_to_pic(test,normalize=True, gray_scale=True)
     cv.imwrite('color_img.jpg', img)
     cv.imshow('My Image', img)
     cv.waitKey(0)
+
     # test colorful img
     test, target = load_pic( 1, frame_paths, normalize=True, gray_scale=False )
-
     img = tensor_to_pic(test,normalize=True, gray_scale=False)
     cv.imwrite('color_img.jpg', img)
     cv.imshow('My Image', img)
