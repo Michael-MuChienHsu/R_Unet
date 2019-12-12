@@ -1,5 +1,7 @@
 {   
     "videopath" : "./origami_single/",
     "step" : "6",
+    "learning_rate": "0.001",
+    "normalize": "False",
     "gray_scale": "True"
 }
