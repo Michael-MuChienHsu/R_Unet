@@ -1,8 +1,6 @@
 ## Recurrent U-net, with LSTM
-## D4 step = 6
-
-## Future plan: multi-layer LSTM, now 2 layer LSTM
-## Conv_LSTM
+## default step = 6
+## Future plan: multi-layer LSTM, conv LSTM, currently contains 2 layer LSTM
 
 import torch
 import torch.nn as nn
@@ -60,12 +58,10 @@ class Up_Layer(nn.Sequential):
         return nn.Sequential(*model)
 
     def forward(self, x, resx):
-        x = self.upsample(x)
-        x = self.pad( x )
-        x = self.degradation(x)
-        x = torch.cat((x, resx), dim = 1)
-        x = self.layer(x)
-        return x
+        output = self.degradation( self.pad( self.upsample(x) ) )
+        output = torch.cat((output, resx), dim = 1)
+        output = self.layer(output)
+        return output
 
 class recurrent_network(nn.Sequential):
     def __init__(self, hidden_layer1, hidden_layer2, use_buffer = False):
@@ -101,10 +97,10 @@ class unet(nn.Module):
         cuda_gpu = torch.cuda.is_available()
 
         if cuda_gpu:
-            self.hidden11 = torch.zeros(1, 16, 16).cuda  # (hidden_layer num, second_dim, output channel)
-            self.hidden12 = torch.zeros(1, 16, 16).cuda
-            self.hidden21 = torch.zeros(1, 16, 16).cuda  # (hidden_layer num, second_dim, output channel)
-            self.hidden22 = torch.zeros(1, 16, 16).cuda
+            self.hidden11 = torch.zeros(1, 16, 16).cuda()  # (hidden_layer num, second_dim, output channel)
+            self.hidden12 = torch.zeros(1, 16, 16).cuda()
+            self.hidden21 = torch.zeros(1, 16, 16).cuda()  # (hidden_layer num, second_dim, output channel)
+            self.hidden22 = torch.zeros(1, 16, 16).cuda()
         else:
             self.hidden11 = torch.zeros(1, 16, 16)  # (hidden_layer num, second_dim, output channel)
             self.hidden12 =  torch.zeros(1, 16, 16)
@@ -137,7 +133,7 @@ class unet(nn.Module):
         if Gary_Scale == True:
             self.up5 = nn.Conv2d( 64, 1, kernel_size = 1 )
     '''
-    ## move to utils
+    ## move to utils.py
     def buffer_update(self, latent_feature):
         if len(self.lstm_buf) == self.step:
             for i in range(0, self.step-1):
