@@ -16,7 +16,6 @@ def reshape_cv(img, gray_scale_r=False):
     else:
         return np.reshape(img, (1, 256, 256))
 
-# this is stupid 
 def pic_normalize(pic):
     pic = np.asarray( pic, dtype=float )
     pic = pic/256
