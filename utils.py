@@ -16,6 +16,7 @@ def reshape_cv(img, gray_scale_r=False):
     else:
         return np.reshape(img, (1, 256, 256))
 
+# this is stupid 
 def pic_normalize(pic):
     pic = np.asarray( pic, dtype=float )
     pic = pic/256
@@ -33,19 +34,15 @@ def load_pic(f_num, f_path, normalize = False, gray_scale = False):
         in_pic = cv.imread(path_in)
         tar_pic = cv.imread(path_target)
 
-
     ## normalize pic for 0-256 to 0-1
     if normalize == True:
         in_pic = pic_normalize(in_pic)
         tar_pic = pic_normalize(tar_pic)
-
-    #in_pic = cv.resize(in_pic, (256,256), interpolation=cv.INTER_CUBIC )
-    #tar_pic = cv.resize(tar_pic, (256,256), interpolation=cv.INTER_CUBIC )
-
-    in_pic = reshape_cv( cv.resize(in_pic, (256,256), interpolation=cv.INTER_CUBIC ), gray_scale_r = gray_scale )
-    tar_pic = reshape_cv( cv.resize(tar_pic, (256,256), interpolation=cv.INTER_CUBIC ), gray_scale_r = gray_scale)    
-    in_pic = torch.tensor( in_pic, dtype=torch.float )
-    tar_pic = torch.tensor( tar_pic, dtype=torch.float )
+    
+    # resize to 256*256 and reshape to tensor
+    in_pic = torch.tensor( reshape_cv( cv.resize(in_pic, (256,256), interpolation=cv.INTER_CUBIC ), gray_scale_r = gray_scale ), dtype=torch.float )
+    tar_pic = torch.tensor( reshape_cv( cv.resize(tar_pic, (256,256), interpolation=cv.INTER_CUBIC ), gray_scale_r = gray_scale), dtype=torch.float )
+    
     if gray_scale == False:
         input_pic = in_pic.view(1, 3, 256, 256)
         target_pic = tar_pic.view(1, 3, 256, 256)
@@ -95,8 +92,15 @@ if __name__ == "__main__":
                 filepath = "./origami_single/" + file
                 frame_paths.append(filepath)
     test, target = load_pic( 1, frame_paths, normalize=True, gray_scale=True )
-
+    # test gray scale
     img = tensor_to_pic(test,normalize=True, gray_scale=True)
+    cv.imwrite('color_img.jpg', img)
+    cv.imshow('My Image', img)
+    cv.waitKey(0)
+    # test colorful img
+    test, target = load_pic( 1, frame_paths, normalize=True, gray_scale=False )
+
+    img = tensor_to_pic(test,normalize=True, gray_scale=False)
     cv.imwrite('color_img.jpg', img)
     cv.imshow('My Image', img)
     cv.waitKey(0)
