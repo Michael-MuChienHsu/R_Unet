@@ -22,17 +22,17 @@ gray_scale_bol = bool(args.gray_scale)
 
 save_img = True
 
-# enumerate photos (frames) in a diractory and save names in list: files
+# get lists of frame paths
 frame_paths = get_file_path(video_path)
 frame_numbers = len(frame_paths)
 
-## ste gpu, set mete info, check gpu, define network, 
+## ste gpu, set data, check gpu, define network, 
 gpus = [0]
 start_date = str(datetime.datetime.now())[0:10]
 cuda_gpu = torch.cuda.is_available()
 network = net.unet(Gary_Scale = gray_scale_bol)
 
-## check gpu status
+## if gpu exist, use cuda
 if( cuda_gpu ):
     network = torch.nn.DataParallel(network, device_ids=gpus).cuda()
 
@@ -43,7 +43,7 @@ print("number of parameters:", pytorch_total_params)
 ## GC memory 
 gc.enable()
 
-# set parameters
+# set training parameters
 optimizer = optim.Adam( network.parameters(), lr = learn_rate )
 critiria = nn.SmoothL1Loss()
 #critiria = nn.MSELoss()
@@ -66,10 +66,10 @@ for epochs in range(0, 200):
 
         # Reshape and Forward propagation
         #test = unet_model.reshape(test)
-        # pass in buffer with length = steps-1, concatenate latent feature to buffer in network  
+        #pass in buffer with length = steps-1, concatenate latent feature to buffer in network  
         output, l_feature = network.forward(test, buffer)
 
-        # update buffer
+        # update buffer for storing latent feature
         buffer = buf_update( l_feature, buffer, 6 )
 
         # Calculate loss
@@ -85,9 +85,7 @@ for epochs in range(0, 200):
         if save_img == True :
             output_img = tensor_to_pic(output, gray_scale=gray_scale_bol)
             output_img_name = './output_img2/' + str(start_date) + '_' + str(epochs) + '_' + str(steps) +'_2output.jpg' 
-            ## input_img = tensor_to_pic(test, , gray_scale=gray_scale_bol)
             cv.imwrite(str(output_img_name), output_img)
-            #cv.imwrite('color_img_test.jpg', input_img)
             del output_img
             del output_img_name
 
@@ -114,11 +112,6 @@ for epochs in range(0, 200):
         gc.collect()
 
         if (((steps+1) % 10 ) == 0):
-            # transfer output from tensor to image
-            # out_img = tensor_to_pic( output )  
-            # save image
-            # save_string = './Output_img/' + str(epochs) + '_' + str( frame_paths[steps][len(frame_paths[steps])-7:] ) 
-            # cv.imwrite(save_string , out_img)
             # save model
             path = os.getcwd() + '/model1/' + start_date + 'epoch_' + str(epochs) +"_step_" + str(steps) + '_R_Unet.pt'
             torch.save(network.state_dict(), path)
