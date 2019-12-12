@@ -64,50 +64,61 @@ class Up_Layer(nn.Sequential):
         x = self.pad( x )
         x = self.degradation(x)
         x = torch.cat((x, resx), dim = 1)
-        out = self.layer(x)
-        return out
+        x = self.layer(x)
+        return x
 
 class recurrent_network(nn.Sequential):
-    def __init__(self, hidden_layers, use_buffer = False):
+    def __init__(self, hidden_layer1, hidden_layer2, use_buffer = False):
         super(recurrent_network, self).__init__()
         self.use_buffer = use_buffer
         self.rnn = nn.LSTM(16, 16)
-        self.hidden = hidden_layers
-        self.our_put_buffer = []
+        self.hidden1 = hidden_layer1
+        self.hidden2 = hidden_layer2
+        if use_buffer == True:
+            self.output_buffer = []
 
     def forward(self, x):
         if self.use_buffer == False:
             for i in x:
             # Step through the sequence one element at a time.
             # after each step, hidden contains the hidden state.
-                out, self.hidden = self.rnn(i, self.hidden)
-                
+                out, (self.hidden1, self.hidden2) = self.rnn(i, (self.hidden1, self.hidden2) )
+            
             return out
+
         else:
-            self.our_put_buffer = []
+            self.output_buffer = []
             for i in x:
             # Step through the sequence one element at a time.
             # after each step, hidden contains the hidden state.
-                out, self.hidden = self.rnn(i, self.hidden)
-                self.our_put_buffer.append(out)
-            return self.our_put_buffer
+                out, (self.hidden1, self.hidden2) = self.rnn(i, (self.hidden1, self.hidden2))
+                self.output_buffer.append(out)
+            return self.output_buffer
     
 class unet(nn.Module):
     def __init__(self, tot_frame_num = 100, length = 6, Gary_Scale = False):
         super( unet, self ).__init__()
-        self.lstm_buf = []
-        self.hidden = (torch.zeros(1, 16, 16),  # (hidden_layer num, second_dim, output channel)
-                       torch.zeros(1, 16, 16))
-        self.hidden2 = (torch.zeros(1, 16, 16),  # (hidden_layer num, second_dim, output channel)
-                       torch.zeros(1, 16, 16))
+        cuda_gpu = torch.cuda.is_available()
+
+        if cuda_gpu:
+            self.hidden11 = torch.zeros(1, 16, 16).cuda  # (hidden_layer num, second_dim, output channel)
+            self.hidden12 = torch.zeros(1, 16, 16).cuda
+            self.hidden21 = torch.zeros(1, 16, 16).cuda  # (hidden_layer num, second_dim, output channel)
+            self.hidden22 = torch.zeros(1, 16, 16).cuda
+        else:
+            self.hidden11 = torch.zeros(1, 16, 16)  # (hidden_layer num, second_dim, output channel)
+            self.hidden12 =  torch.zeros(1, 16, 16)
+            self.hidden21 = torch.zeros(1, 16, 16)  # (hidden_layer num, second_dim, output channel)
+            self.hidden22 = torch.zeros(1, 16, 16)
+
         self.step = length
         self.max_pool = nn.MaxPool2d(2)
         self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
         self.one_conv1 = nn.Conv2d( 1024, 512, kernel_size=1, bias=True)
         self.one_conv2 = nn.Conv2d( 1024, 512, kernel_size=1, bias=True)
 
-        self.rnn = recurrent_network( self.hidden, use_buffer = True )
-        self.rnn2 = recurrent_network( self.hidden2 )
+        self.rnn = recurrent_network( self.hidden11, self.hidden12, use_buffer = True )
+        self.rnn2 = recurrent_network( self.hidden21, self.hidden22 )
 
         self.down1 = Down_Layer( 3, 64 )
         if Gary_Scale == True:
@@ -138,6 +149,7 @@ class unet(nn.Module):
     def forward(self, x, buffer):
         self.lstm_buf = buffer.copy()
 
+        # down convolution
         x1 = self.down1(x)
         x2 = self.max_pool(x1)
         
@@ -154,7 +166,7 @@ class unet(nn.Module):
 
         latent_feature = x5.view(-1, 16, 16)
         self.lstm_buf.append( latent_feature )
-        print( len( self.lstm_buf ) )
+        print( 'lstm buffer len', len( self.lstm_buf ) )
         # LSTM unit
         if len( self.lstm_buf ) > 1 :
             lstm_output = self.rnn(self.lstm_buf)
@@ -166,75 +178,16 @@ class unet(nn.Module):
             x6 = self.one_conv1(lstm_output)
             x5 = self.one_conv2(lstm_output)
             x5 = torch.cat((x5, x6), dim = 1)   
+            del lstm_output
         
+        # up convolution
         x = self.up1( x5, x4 )
         x = self.up2( x, x3 )
         x = self.up3( x, x2 )
         x = self.up4( x, x1 )
         x = F.relu(self.up5( x ))
 
+        ## release var
+        self.lstm_buf = []
+
         return x, latent_feature
-
-"""
-## testing code
-network = unet()
-test_model = unet()
-test = torch.randn( ( 1, 3, 256, 256 ) )
-target = torch.tensor(torch.randn( ( 1, 3, 256, 256 ) ), dtype=torch.float)
-
-import cv2 as cv
-
-pic = cv.imread('./origami_single/001.jpg')
-pic = torch.tensor(cv.resize(pic, (256,256), interpolation=cv.INTER_CUBIC ))
-pic = pic.view(1, 3, 256, 256)
-pic = torch.tensor(pic, dtype = torch.float)
-#test = test.float() 
-test = pic
-optimizer = optim.SGD( network.parameters(), lr = 0.01 )
-critiria = nn.MSELoss()
-"""
-def train():
-    ##print(network)
-
-    for epochs in (0, 5):
-        for i in range(0, 100):
-            print("epoch", epochs, "steps", i)
-            # Clear the gradients, since PyTorch accumulates them
-            optimizer.zero_grad()
-
-            # Reshape and Forward propagation
-            #test = unet_model.reshape(test)
-            output = network.forward(test)
-
-            # Calculate loss
-            loss = critiria(output, target)
-
-            # Backward propagation
-            loss.backward(retain_graph = False)
-
-            # Update the gradients
-            optimizer.step()
-
-            # save and evaluate every n epochs
-            if ( (i > 0) and ( (i % 2) == 0)):
-                # save model
-                path = os.getcwd() + '/epoch_' + str(epochs) +"_step_" + str(i) + '_unet.pt'
-                torch.save(network.state_dict(), path)
-
-                # test model with train data
-                print('loss at: epoch', epochs, 'step', i   , "loss", loss)
-
-                #testing(path)
-
-def testing(path):
-    # load model
-    try:
-        test_model.load_state_dict(torch.load( path ))
-        out = test_model(test)
-        loss = critiria(out, target)
-        ## print("Evaluation:", loss)
-    except Exception as e:
-        print("test err mag: ", str(e))
-
-if __name__ == "__main__":
-    train()
