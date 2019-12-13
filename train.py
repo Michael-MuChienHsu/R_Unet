@@ -15,16 +15,19 @@ import gc
 
 # set arguements
 args = parse_argument.argrements()
-video_path = args.videopath
-learn_rate = float(args.lr)
-step = int(args.step)
-gray_scale_bol = bool(args.gray_scale)
+video_path, learn_rate, step, gray_scale_bol = args.videopath, float(args.lr), int(args.step), bool(args.gray_scale)
 
 save_img = True
 
 # get lists of frame paths
-frame_paths = get_file_path(video_path)
-frame_numbers = len(frame_paths)
+cwd = os.getcwd()
+os.chdir(cwd+video_path[1:])
+dir_list = next(os.walk('.'))[1]
+video_dir_list = []
+for i in dir_list:
+    i = video_path + str(i) + '/'
+    video_dir_list.append(i)
+os.chdir(cwd)
 
 ## ste gpu, set data, check gpu, define network, 
 gpus = [0]
@@ -49,74 +52,83 @@ critiria = nn.SmoothL1Loss()
 #critiria = nn.MSELoss()
 
 loss_list = [] ## records loss through each step in training
+batch_size = len(video_dir_list)
 
 for epochs in range(0, 200):
     buffer = []
-    for steps in range(0, 10):
-        #print("epoch", epochs, "steps", steps)
-        # Clear the gradients, since PyTorch accumulates them
-        start_time = time.time()
-        optimizer.zero_grad()
+    ## randomly choose tarining video sequence for each epoch
+    train_seq = np.random.permutation(batch_size)
+    for batch in range(0, batch_size):
+        frame_paths = get_file_path(video_dir_list[ train_seq[batch] ])
+        for steps in range(0, 10):
+            #print("epoch", epochs, "steps", steps)
+            # Clear the gradients, since PyTorch accumulates them
+            start_time = time.time()
+            optimizer.zero_grad()
 
-        # load picture, step = pic num
-        test, target = load_pic( steps, frame_paths, gray_scale=gray_scale_bol )
+            # load picture, step = pic num
+            test, target = load_pic( steps, frame_paths, gray_scale=gray_scale_bol )
+            if cuda_gpu:
+                test = test.cuda()
+                target = target.cuda()
+
+            # Reshape and Forward propagation
+            #test = unet_model.reshape(test)
+            #pass in buffer with length = steps-1, concatenate latent feature to buffer in network  
+            output, l_feature = network.forward(test, buffer)
+
+            # update buffer for storing latent feature
+            buffer = buf_update( l_feature, buffer, 6 )
+
+            # Calculate loss
+            #loss = critiria( Variable(output.long()),  Variable(target.long()))
+            loss = critiria( output, target)
+
+            # record loss in to csv
+            loss_value =  float( loss.item() )
+            string = 'epoch_' + str(epochs) + '_step_' + str(steps) 
+            loss_list.append( [ string, loss_value ])
+
+            # save img
+            if save_img == True :
+                output_img = tensor_to_pic(output, gray_scale=gray_scale_bol)
+                output_img_name = './output_img2/' + str(start_date) + '_E' + str(epochs) + '_B'+ str(batch) + '_S'+ str(steps) +'_2output.jpg' 
+                cv.imwrite(str(output_img_name), output_img)
+                del output_img
+                del output_img_name
+
+            # Backward propagation
+            loss.backward(retain_graph = True)
+
+            end_time = time.time()
+            elapse_time = round((end_time - start_time), 2)
+            
+            print('epoch', epochs, 'step', steps, "loss:", loss, 'time_used', elapse_time)
+            # Update the gradients
+            optimizer.step()
+            
+            # print memory used
+            process = psutil.Process(os.getpid())
+            print('used memory', round((int(process.memory_info().rss)/(1024*1024)), 2), 'MB' )
+
+            if cuda_gpu:
+                test = test.cpu()
+                target = target.cpu()
+
+            del test
+            del target
+            gc.collect()
+
+            if (((steps+1) % 10 ) == 0):
+                # save model
+                path = os.getcwd() + '/model1/' + start_date + 'epoch_' + str(epochs) +"_step_" + str(steps) + '_R_Unet.pt'
+                torch.save(network.state_dict(), path)
+                print('save model to:', path)
+            
+            if cuda_gpu:
+                torch.cuda.empty_cache()
         if cuda_gpu:
-            test = test.cuda()
-            target = target.cuda()
-
-        # Reshape and Forward propagation
-        #test = unet_model.reshape(test)
-        #pass in buffer with length = steps-1, concatenate latent feature to buffer in network  
-        output, l_feature = network.forward(test, buffer)
-
-        # update buffer for storing latent feature
-        buffer = buf_update( l_feature, buffer, 6 )
-
-        # Calculate loss
-        #loss = critiria( Variable(output.long()),  Variable(target.long()))
-        loss = critiria( output, target)
-
-        # record loss in to csv
-        loss_value =  float( loss.item() )
-        string = 'epoch_' + str(epochs) + '_step_' + str(steps) 
-        loss_list.append( [ string, loss_value ])
-
-        # save img
-        if save_img == True :
-            output_img = tensor_to_pic(output, gray_scale=gray_scale_bol)
-            output_img_name = './output_img2/' + str(start_date) + '_' + str(epochs) + '_' + str(steps) +'_2output.jpg' 
-            cv.imwrite(str(output_img_name), output_img)
-            del output_img
-            del output_img_name
-
-        # Backward propagation
-        loss.backward(retain_graph = True)
-
-        end_time = time.time()
-        elapse_time = round((end_time - start_time), 2)
-        
-        print('epoch', epochs, 'step', steps, "loss:", loss, 'time_used', elapse_time)
-        # Update the gradients
-        optimizer.step()
-        
-        # print memory used
-        process = psutil.Process(os.getpid())
-        print('used memory', round((int(process.memory_info().rss)/(1024*1024)), 2), 'MB' )
-
-        if cuda_gpu:
-            test = test.cpu()
-            target = target.cpu()
-
-        del test
-        del target
-        gc.collect()
-
-        if (((steps+1) % 10 ) == 0):
-            # save model
-            path = os.getcwd() + '/model1/' + start_date + 'epoch_' + str(epochs) +"_step_" + str(steps) + '_R_Unet.pt'
-            torch.save(network.state_dict(), path)
-            print('save model to:', path)
-
+            torch.cuda.empty_cache()
     # log loss after each epoch
     write_csv_file( './output/'+ start_date +'_loss_record.csv', loss_list )
 
