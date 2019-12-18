@@ -67,8 +67,5 @@ def train():
             process = psutil.Process(os.getpid())
             print('epoch', i, 'step', j, 'used memory', round((int(process.memory_info().rss)/(1024*1024)), 2), 'MB' )
 
-
-
-
 if __name__ == "__main__":
     train()
