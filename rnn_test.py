@@ -24,14 +24,17 @@ class LSTMM(nn.Sequential):
         return out
 
 def train():
+    
+    x = Variable(torch.randn((50, 100, 10)))
+    target = Variable(torch.randn((1, 100, 30)))
+    
+    ## use class
+    
     lstm = LSTMM()
+    
     critiria = nn.SmoothL1Loss()
     optimizer = optim.Adam( lstm.parameters(), lr = 0.001 )
-    x = Variable(torch.randn((50, 100, 10)))
-
-    target = Variable(torch.randn((1, 100, 30)))
-
-    ## use class
+    
     for i in range(0, 2):
         for j in range(0, 10):
             optimizer.zero_grad()
@@ -49,7 +52,6 @@ def train():
 
     critiria = nn.SmoothL1Loss()
     optimizer = optim.Adam( lstm.parameters(), lr = 0.001 )
-
 
     h0 = Variable(torch.randn(1, 50, 30))
     c0 = Variable(torch.randn(1, 50 ,30))
