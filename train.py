@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
-import R_Unet as net
+import R_Unet_2080 as net
 import numpy as np
 import parse_argument
 from utils import *
@@ -131,21 +131,22 @@ for epochs in range(0, epoch_num):
 
             del test, target, loss, output, output_img, l_feature
             gc.collect()
-
-            if (((epochs+1) % 10 ) == 0):
-                # save model
-                path = os.getcwd() + '/model1/' + start_date + 'epoch_' + str(epochs) +"_step_" + str(steps) + '_R_Unet.pt'
-                torch.save(network.state_dict(), path)
-                print('save model to:', path)
             
             #check_tensors()
 
             if cuda_gpu:
                 torch.cuda.empty_cache()
+                
         if cuda_gpu:
             torch.cuda.empty_cache()
     # log loss after each epoch
     write_csv_file( './output/'+ start_date +'_loss_record.csv', loss_list )
+
+    # save model
+    if (((epochs+1) % 10 ) == 0):
+        path = os.getcwd() + '/model1/' + start_date + 'epoch_' + str(epochs) +"_step_" + str(steps) + '_R_Unet.pt'
+        torch.save(network.state_dict(), path)
+        print('save model to:', path)
 
     if cuda_gpu:
         torch.cuda.empty_cache()
