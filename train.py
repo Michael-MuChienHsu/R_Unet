@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
-import R_Unet_2080 as net
+import R_Unet as net
 import numpy as np
 import parse_argument
 from utils import *
