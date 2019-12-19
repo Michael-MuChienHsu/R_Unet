@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
-import R_Unet as net
+import R_Unet_2080 as net
 import numpy as np
 import parse_argument
 from utils import *
@@ -37,12 +37,12 @@ os.chdir(cwd)
 gpus = [0]
 start_date = str(datetime.datetime.now())[0:10]
 cuda_gpu = torch.cuda.is_available()
-network = net.unet(Gary_Scale = gray_scale_bol, size_index=size_idx)
 
 ## if gpu exist, use cuda
 if( cuda_gpu ):
-    network = torch.nn.DataParallel(network, device_ids=gpus).cuda()
-    ##network.module. __init__(Gary_Scale = gray_scale_bol, size_index=size_idx)
+    network = torch.nn.DataParallel(net.unet(Gary_Scale = gray_scale_bol, size_index=size_idx), device_ids=gpus).cuda()
+else:
+    network = net.unet(Gary_Scale = gray_scale_bol, size_index=size_idx)
 
 ## get model size
 pytorch_total_params = sum(p.numel() for p in network.parameters())
@@ -68,6 +68,8 @@ for epochs in range(0, epoch_num):
     train_seq = np.random.permutation(batch_size)
     for batch in range(0, batch_size):
         frame_paths = get_file_path(video_dir_list[ train_seq[batch] ])
+        # skip every 4 frame for decrease compactness
+        frame_paths = [ frame_paths[i] for i in range(0, len(frame_paths), 5) ]
         step_size = len(frame_paths)
         # reset buffer for each video
         buffer = []
@@ -124,7 +126,7 @@ for epochs in range(0, epoch_num):
             # print memory used
             process = psutil.Process(os.getpid())
             print('used memory', round((int(process.memory_info().rss)/(1024*1024)), 2), 'MB' )
-            
+
             if cuda_gpu:
                 test = test.cpu()
                 target = target.cpu()
@@ -147,6 +149,7 @@ for epochs in range(0, epoch_num):
         path = os.getcwd() + '/model1/' + start_date + 'epoch_' + str(epochs) +"_step_" + str(steps) + '_R_Unet.pt'
         torch.save(network.state_dict(), path)
         print('save model to:', path)
+
 
     if cuda_gpu:
         torch.cuda.empty_cache()
