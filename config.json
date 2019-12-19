@@ -1,7 +1,12 @@
 {   
-    "videopath" : "./origami_single/",
+    "videopath" : "./Tcam/",
+    "output_path": "./Tcam_output/",
+    "epoch": "200",
     "step" : "6",
-    "learning_rate": "0.001",
+    "predict_frame": "3",
+    "learning_rate": "0.0005",
     "normalize": "False",
-    "gray_scale": "True"
+    "size_idx":"64",
+    "gray_scale": "True",
+    "loss_function": "l1"
 }
