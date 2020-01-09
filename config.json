@@ -1,12 +1,15 @@
 {   
     "videopath" : "./Tcam/",
-    "output_path": "./Tcam_output/",
-    "epoch": "200",
+    "output_path": "./Tcam_output_5_5/",
+    "epoch": "2000",
     "step" : "6",
-    "predict_frame": "3",
+    "input_frame": "6",
+    "predict_frame": "6",
     "learning_rate": "0.0005",
     "normalize": "False",
     "size_idx":"64",
     "gray_scale": "True",
-    "loss_function": "l1"
+    "loss_function": "l1",
+    "load" : "False",
+    "load_model_name":"./Tcam_output_color/2019-12-25epoch_1649_R_6_P_3_size_idx_64_R_Unet.pt"
 }
