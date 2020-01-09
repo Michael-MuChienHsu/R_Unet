@@ -5,7 +5,7 @@ Taking advantage of LSTM and U-net encode-decoder, we wish to be able in predict
 Currently using a 2 layer LSTM network as RNN network </br>
 
 for n input recurrently predict next 1 frame : train.py </br>
-for n input predirct m output (future frames): train_mul.oy </br>
+for n input predirct m output (future frames): train_mul.py </br>
 
 to train: python train.py config </br>
 to train: python train_mul.py config </br>
