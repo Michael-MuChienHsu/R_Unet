@@ -12,8 +12,7 @@ network model: R_Unet.py </br>
 to train: python train.py config </br>
 
 Overview of network:
-![alt_text](https://github.com/vagr8/R_Unet/blob/master/recurrent-u-net-architecture.png)
-![alt text](https://github.com/vagr8/R_Unet/blob/master/laege.png)
+![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v1.jpg)
 </br>
 </br>
 Hsu Mu Chien, Watanabe Lab, Department of Fundamental Science and Engineering, Waseda University, All right reserved.
