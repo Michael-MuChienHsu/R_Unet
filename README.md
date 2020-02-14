@@ -12,8 +12,10 @@ network model: R_Unet.py </br>
 to train: python train.py config </br>
 
 Current we are working on a better model using convolution lstm, name as runet_v2
-Overview of network:
+Architecture of v1:
 ![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v1.jpg)
+</br>
+Architecture of v2:
 ![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v2.png)
 </br>
 </br>
