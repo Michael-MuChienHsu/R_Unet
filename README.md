@@ -14,7 +14,7 @@ to train: python train.py config </br>
 Current we are working on a better model using convolution lstm, name as runet_v2
 Overview of network:
 ![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v1.jpg)
-![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v2.jpg)
+![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v2.png)
 </br>
 </br>
 Hsu Mu Chien, Watanabe Lab, Department of Fundamental Science and Engineering, Waseda University, All right reserved.
