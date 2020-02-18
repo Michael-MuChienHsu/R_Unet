@@ -14,15 +14,16 @@ network model: R_Unet.py </br>
 
 to train: python train.py config </br>
 
-Current we are working on a better model using convolution lstm, name as runet_v2
+Current we are working on a better model using convolution lstm, name as runet_v2 </br>
 Architecture of v1:
 ![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v1.jpg)
 </br>
 Architecture of v2:
 ![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v2.png)
 </br>
-
+</br>
 [1] Stochastic Adversarial Video Prediction, CVPR 2018</br>
 [2] High Fidelity Video Prediction with
 Large Stochastic Recurrent Neural Networks, NeurIPS 2019</br>
+</br>
 Hsu Mu Chien, Watanabe Lab, Department of Fundamental Science and Engineering, Waseda University, All right reserved.
