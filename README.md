@@ -4,6 +4,9 @@ This is a on going project applying recurrent method upon U-net to perform video
 Taking advantage of LSTM and U-net encode-decoder, we wish to be able in predicting next (n) frame(s). </br>
 Currently using a 2 layer LSTM network as RNN network applying on latent feature of U net </br>
 
+Our model currently on kth dataset outperforms Alex X. Lee et al. [1] upon SSIM and VGG cosine similarity evaluation matrics </br>
+Also on kitti dataset outperforms Ruben V. et al. [2] upen SSIM and VGG cosine similarity evaluation matrics </br>
+
 configuration: config.json </br>
 parse configuration: class parse_arguement.py
 training: train.py </br>
@@ -18,5 +21,8 @@ Architecture of v1:
 Architecture of v2:
 ![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v2.png)
 </br>
-</br>
+
+[1] Stochastic Adversarial Video Prediction, CVPR 2018</br>
+[2] High Fidelity Video Prediction with
+Large Stochastic Recurrent Neural Networks, NeurIPS 2019</br>
 Hsu Mu Chien, Watanabe Lab, Department of Fundamental Science and Engineering, Waseda University, All right reserved.
