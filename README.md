@@ -3,7 +3,7 @@ This is a on going project applying recurrent method upon U-net to perform pixel
 
 # Brief introduction
 Taking advantage of LSTM and U-net encode-decoder, we wish to be able in predicting next (n) frame(s). </br>
-Currently using a 2 layer LSTM network (V1) or convoolution LSTM (V2) as RNN network applying on latent feature of U net </br>
+Currently using a 2 layer LSTM network (V1) or convolution LSTM (V2) as RNN network applying on latent feature of U net </br>
 
 Our model (V2) currently on kth dataset outperforms Alex X. Lee et al. [1] upon PSNR and VGG cosine similarity evaluation matrics </br>
 Also on kitti dataset outperforms Ruben V. et al. [2] upen SSIM and VGG cosine similarity evaluation matrics </br>
