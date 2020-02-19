@@ -32,6 +32,5 @@ Current we are working on a better model using convolution lstm, name as runet_v
 [1] Stochastic Adversarial Video Prediction, CVPR 2018</br>
 [2] High Fidelity Video Prediction with
 Large Stochastic Recurrent Neural Networks, NeurIPS 2019</br>
-</br>
-[3] [convLSTM](https://github.com/automan000/Convolutional_LSTM_PyTorch) - The convolution lstm framework used <\br>
+[3] [convLSTM](https://github.com/automan000/Convolutional_LSTM_PyTorch) - The convolution lstm framework used </br></br>
 Hsu Mu Chien, Watanabe Lab, Department of Fundamental Science and Engineering, Waseda University, All right reserved.
