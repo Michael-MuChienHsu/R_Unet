@@ -20,10 +20,10 @@ to train: python train.py config
 
 # Our Architecture
 Current we are working on a better model using convolution lstm, name as runet_v2 </br>
-* Architecture of v1:
+* Architecture of v1:</br>
 ![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v1.jpg)
 </br>
-* Architecture of v2:
+* Architecture of v2:</br>
 ![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v2.png)
 </br>
 </br>
