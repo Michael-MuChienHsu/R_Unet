@@ -28,8 +28,10 @@ Current we are working on a better model using convolution lstm, name as runet_v
 </br>
 </br>
 # Some result
-prediction(left) and ground truth (right)</br>
- ![alt_text](https://github.com/vagr8/R_Unet/blob/master/kitti%20prediction.gif)  ![alt_text](https://github.com/vagr8/R_Unet/blob/master/kitti_GT.gif)
+prediction:
+![alt_text](https://github.com/vagr8/R_Unet/blob/master/kitti%20prediction.gif) 
+ Ground truth:
+![alt_text](https://github.com/vagr8/R_Unet/blob/master/kitti_GT.gif)
 
 
 # References
