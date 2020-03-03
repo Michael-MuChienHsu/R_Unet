@@ -1,7 +1,3 @@
-## Recurrent U-net, with LSTM
-## default step = 6
-## Future plan: multi-layer LSTM, conv LSTM, currently contains 2 layer LSTM
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -148,8 +144,8 @@ class unet(nn.Module):
         self.one_conv6 = nn.Conv2d( 128, 120, kernel_size=1, bias=True)
         self.one_conv7 = nn.Conv2d( 64, 62, kernel_size=1, bias=True)
         
-        self.rnn = recurrent_network_layer( fraction_index = self.resize_fraction )
-        self.rnn2 = recurrent_network( fraction_index = self.resize_fraction )
+        self.rnn = recurrent_network_layer( fraction_index = 2 )
+        self.rnn2 = recurrent_network( fraction_index = 2 )
 
         if Gary_Scale == True:
             self.down1 = Down_Layer(1, 64)
@@ -202,21 +198,6 @@ class unet(nn.Module):
 
         lstm_output =  Variable(self.convlstm(latent_feature)[0])
         
-        '''
-        # LSTM unit
-        if len( self.lstm_buf ) > 0 :
-            lstm_output = self.rnn(self.lstm_buf)
-            lstm_output = self.rnn2( lstm_output )
-            #lstm_output = self.rnn2( self.lstm_buf )
-            lstm_output = lstm_output.view(1, 512, int(16/self.resize_fraction), int(16/self.resize_fraction) )
-        
-        # use x5 to perform lstm
-        if 'lstm_output' in locals():
-            x6 = self.one_conv1(x5)
-            x5 = self.one_conv2(lstm_output)
-            x5 = torch.cat((x5, x6), dim = 1)   
-        '''
-
         if 'lstm_output' in locals():
             x5 = torch.cat((x5, lstm_output), dim = 1) 
             h = lstm_output.view(1, -1, x4.shape[2], x4.shape[3]) 
@@ -239,24 +220,15 @@ class unet(nn.Module):
             x1 = torch.cat((x1, h), dim = 1) 
             x = self.up4( x, x1 )
             x = F.relu(self.up5( x ))
-        '''
-        else:
-            x5 = self.one_conv3( x5 )
-        
-            # up convolution 
-            x = self.up1( x5, x4 )
-            x = self.up2( x, x3 )
-            x = self.up3( x, x2 )
-            x = self.up4( x, x1 )
-            x = F.relu(self.up5( x ))
-        '''
+
         return x
 
     def free_memory(self):
+        '''
         self.rnn.hidden1 = self.rnn.hidden1.detach()
         self.rnn.hidden2 = self.rnn.hidden2.detach()
         self.rnn2.hidden1 = self.rnn2.hidden1.detach()
         self.rnn2.hidden2 = self.rnn2.hidden2.detach()
         #self.convlstm.hidden_channels = self.convlstm.hidden_channels.detach()
-
+        '''
         self.free_mem_counter = 0
