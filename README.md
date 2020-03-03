@@ -16,7 +16,8 @@ Also on kitti dataset outperforms Ruben V. et al. [2] upen SSIM and VGG cosine s
 * V1 model: R_Unet.py </br>
 * V2 model:  R_Unet.py </br>
 ```
-to train: python train.py config 
+to train v1 model: python3 train.py config 
+to train other model: python3 train_v2.py config 
 ```
 
 # Our Model Architecture
