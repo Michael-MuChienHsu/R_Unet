@@ -10,6 +10,7 @@ class argrements():
         self.gray_scale = ''
         self.sz_idx = ''
         self.lr = ''
+        self.version = ''
         self.loss_func = ''
         self.predict_frame = ''
         self.parseJSON()
@@ -28,6 +29,7 @@ class argrements():
                 self.sz_idx = config["size_idx"]
                 self.loss_func = config["loss_function"]
                 self.epoch_num = config["epoch"]
+                self.version = config["version"]
                 self.lr = config["learning_rate"]
                 self.gray_scale = config["gray_scale"]
                 self.predict_frame = config["predict_frame"]
