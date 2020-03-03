@@ -13,8 +13,9 @@ Also on kitti dataset outperforms Ruben V. et al. [2] upen SSIM and VGG cosine s
 * configuration: config.json </br>
 * parse configuration: class parse_arguement.py </br>
 * training file: train.py </br>
-* V1 model: R_Unet.py </br>
-* V2 model:  R_Unet.py </br>
+* V1 model: R_Unet_v1.py </br>
+* V2 model:  R_Unet_ver_2.py </br>
+* V4 model:  R_Unet_ver_4.py </br>
 ```
 to train v1 model: python3 train.py config 
 to train other model: python3 train_v2.py config 
