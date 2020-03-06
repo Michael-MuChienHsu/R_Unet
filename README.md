@@ -40,6 +40,11 @@ prediction:
  ![alt_text](https://github.com/vagr8/R_Unet/blob/master/kitti%20prediction.gif) 
 Ground truth:
  ![alt_text](https://github.com/vagr8/R_Unet/blob/master/kitti_GT.gif)
+<br>
+prediction:
+ ![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/4_24000val.gif) 
+Ground truth:
+ ![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/4_24000val_gt.gif)
 
 
 # References
