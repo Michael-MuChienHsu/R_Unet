@@ -1,0 +1,16 @@
+{   
+    "videopath" : "./KTH_dataset/walking/",
+    "output_path": "./kth_5_5_2_v4/",
+    "epoch": "20000",
+    "step" : "5",
+    "input_frame": "5",
+    "predict_frame": "5",
+    "skip_frame": "2",	
+    "learning_rate": "0.0001",
+    "normalize": "False",
+    "size_idx":"64",
+    "gray_scale": "True",
+    "loss_function": "l1",
+    "load" : "True",
+    "load_model_name":"./kth_5_5_2_v4/2020-02-25epoch_5999_R_5_P_5_size_idx_64_R_Unet.pt"
+}
