@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
-import R_Unet_ver_4 as net
 import numpy as np
 import parse_argument
 from utils import *
+from tensorboardX import SummaryWriter
 import os
 import csv
 import datetime
@@ -16,69 +16,95 @@ import gc
 # possible size_index: 2^n, n >= 4, n is int 
 
 # set arguements
+'''
+video_path:        directory of video frames
+learn_rate:        learning rate
+gray_scale_bol:    boolean, True for use gray scale image, False for use color image
+version:           runet version to use
+output_path:       directory for output image, model and tensorboard summary
+epoch_num:         number of epochs to train
+size_idx:          resize image to size_idx x size_idx square image
+loss_function:     loss funtion. L1 loss as default
+skip_frame:        sample rate, to reduce compactness
+predict_frame_num: number of prections    
+Load:              True: load model from checkpoint; False: start from zero
+load_model_name:   checkpoint name to load and train 
+'''
+
 args = parse_argument.argrements()
 video_path, learn_rate, step, gray_scale_bol, version = args.videopath, float(args.lr), int(args.step), bool(args.gray_scale), args.version
 output_path = args.output_path
 epoch_num = int(args.epoch_num)
 size_idx = int(args.sz_idx)
 loss_function = str(args.loss_func)
-input_frmae = int( args.input_frame )
+#input_frame = int( args.input_frame )
 skip_frame = int(args.skip_frame)
 predict_frame_num = int(args.predict_frame)
-laod_model_name = args.load_model_name
-Load = args.load
 
-save_img = True
-
-assert ( input_frmae <= step )
 assert (os.path.isdir( output_path )) # check output path exist
+
+# if gpu exist, use cuda
+device = torch.device('cuda:0' if cuda_gpu else 'cpu')
+
+# load network
+network = network_loader(version, gray_scale_bol, size_idx)
+network = network.to(device)
+
+# set optimizer and Loss fuction
+optimizer = optim.Adam( network.parameters(), lr = learn_rate )
+writer = SummaryWriter(output_path + 'Summary_writer')
+
+# load model from check point or start from epoch 0
+Load = args.load
+if Load == True:
+    load_model_name = args.load_model_name
+    if os.path.isfile( load_model_name ):
+        network, optimizer, start_epoch = load_checkpoint( network, optimizer, load_model_name )
+    else:
+        print("checkpoint do not exist, set Load to False or specify correct checkpoint path")
+        exit()
+else:
+    start_epoch = 0
+
+
+# save image while training or not
+save_img = True
 
 # get lists of frame paths
 all_video_dir_list = get_video_dir_list(video_path)
+## set video 0-31 as training video and 32-40 as validation video
 video_dir_list = all_video_dir_list[0:32]
 val_dir_list = all_video_dir_list[32:40]
 
-## ste gpu, set data, check gpu, define network, 
+# ste gpu, set data, check gpu, define network, 
 gpus = [0]
 start_date = str(datetime.datetime.now())[0:10]
 cuda_gpu = torch.cuda.is_available()
 
-## if gpu exist, use cuda
-device = torch.device('cuda:0' if cuda_gpu else 'cpu')
-network = network_loader(version, gray_scale_bol, size_idx)
-network = network.to(device)
-
-## GC memory
+# Garbage Collector
 gc.enable()
 
-# set training parameters
-optimizer = optim.Adam( network.parameters(), lr = learn_rate )
-
-if loss_function != 'l1':
+if loss_function == 'MSE' or loss_function == 'mse':
     critiria = nn.MSELoss()
 else:
     critiria = nn.SmoothL1Loss()
 
 loss_list = [] ## records loss through each step in training
-batch_size = len(video_dir_list) ## batch size = number of avaliable video
-
-# load previous model
-if Load == True:
-    network, optimizer, start_epoch = load_checkpoint( network, optimizer, laod_model_name )
-else:
-    start_epoch = 0
+train_video_num = len(video_dir_list) # batch size = number of avaliable video, and later 
 
 # print training info
 pytorch_total_params = sum(p.numel() for p in network.parameters())
 print("==========================")
+print("model version:", version)
+print("training/validation video path", video_path)
 print("number of parameters:", pytorch_total_params)
 print("leaening rate:", learn_rate)
 print("frame size:", size_idx, 'x', size_idx)
 print("input", step, "frames")
 print("predict", predict_frame_num, "frames")
 print("sample every ", skip_frame, "frame(s)")
-print("number of epochs", (start_epoch + epoch_num) )
-print ("output path", output_path)
+print("number of total epochs", (start_epoch + epoch_num) )
+print("output path", output_path)
 print("optimizer", optimizer)
 print("val == True")
 print("==========================")
@@ -87,39 +113,66 @@ input("press enter to continue\n\n")
 
 print("==========================")
 
-for epochs in range(start_epoch, start_epoch + epoch_num):
-    ## randomly choose tarining video sequence for each epoch
-    train_seq = np.random.permutation(batch_size)[:16] # random train sequence
-    train_video_size = len(train_seq)
 
+'''
+In this code, 32 videos are used as training video, and for each epoch, we will randomly choose 16 video from video pool.
+Moreover, start point for each video is ramdomly choosed everytime when it is used. So it is impossiable to guarentee how 
+many epochs or batches it need to go through every training sequence. Although, here I use 'epoch' and ' batch' in training 
+stage, I don't think the idea 'epoch' is meaningful since training sequence for videos is hignly randomlized. As a consequence,
+I think the idea 'iteration' suits better for this usecase.
+'''
+
+for epochs in range(start_epoch, start_epoch + epoch_num):
+    # randomly choose 16 videos from video pool as training video for this epoch 
+    train_seq = np.random.permutation(train_video_num)[:16] # random train sequence
+    train_video_size = len(train_seq)
+    print('epoch', epochs)
+
+    # run validation every 50 epoches 
     if( (epochs) % 50 == 0 ):
-        valadation = True
+        validation = True
     else:
-        valadation = False
+        validation = False
 
     for batch in range(0, train_video_size):
         frame_paths = get_file_path(video_dir_list[ train_seq[batch] ])  
         new_frame_paths = [ frame_paths[i] for i in range(0, len(frame_paths), skip_frame ) ]
+        # for number 10th predictions, we only need to do 9 times
+        # eg. input t = 0, output t = 1
+        #     input t = 1, output t = 2
+        #                 .
+        #                 .
+        #                 .
+        #     input t = 8, output t = 10
+        # so step_size = step + predict_frame_num - 1
+        # step_size:         step per batch
+        # step:              input ground truth frame number
+        # predict_frame_num: frame munber for prediction
         step_size = step + predict_frame_num - 1
-        avalible_len = len(new_frame_paths)
-        print ('current batch:', video_dir_list[ train_seq[batch] ] )
-        # reset buffer for each video
-        buffer = []
+        #print ('current batch:', video_dir_list[ train_seq[batch] ] )
 
+        avalible_len = len(new_frame_paths)
         start_frame = np.random.randint(0, avalible_len - step_size - 1 )  # random start point
 
+        # ensure there remains enough frame for training after random start point is set
         if avalible_len - start_frame < step_size:
             print( 'not enough image ' )
             pass
         else:
+            # to enrich uncertainty, there are 50% chance that it need to perform 1 extra prediction  
             if( np.random.rand() > 0.5 ):
                 exception = True
                 step_size = step_size + 1
             else:
                 exception = False
+
+            # load every images needed in this batch 
+            image_tensors = frame_batch_loader(start_frame, new_frame_paths, step_size, gray_scale = gray_scale_bol, size_index = size_idx).to(device)
                    
-            for steps in range( start_frame, start_frame + step_size):
-                if (steps == start_frame):
+            for steps in range(0, step_size):
+
+                # free_mem is a token to tell model to release memory for storing buffer, however it is not used currently.
+                if (steps == 0):
                     free_mem = True
                 else:
                     free_mem = False
@@ -129,51 +182,60 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
                 start_time = time.time()
                 optimizer.zero_grad()
 
-                # load picture, step = pic num
-                test, target = load_pic( steps, new_frame_paths, gray_scale = gray_scale_bol, size_index = size_idx)
-
+                # load picture; step = pic num
+                # test: input image
+                # target: next image, prediction target image
+                test, target = image_tensors[steps], image_tensors[steps+1]
                 
-                test = test.to(device)
-                target = target.to(device)
-
-                # Reshape and Forward propagation
-                #test = unet_model.reshape(test)
-                #pass in buffer with length = steps-1, concatenate latent feature to buffer in network
-                if steps < start_frame + step:
+                # FORWARD INPUT:
+                # groundtruth image as input if steps < step
+                # else: take previous output as input
+                # eg. 5 GT input, 5 predictions ( step = 5 and predict = 5 )
+                #     steps = 0: input groundtruth frame 0 -> output predict 1
+                #     steps = 1: input groundtruth frame 1 -> output predict 2
+                #     steps = 2: input groundtruth frame 2 -> output predict 3
+                #     steps = 3: input groundtruth frame 3 -> output predict 4
+                #     steps = 4: input groundtruth frame 4 -> output predict 5
+                #   -------------------------------------------------------------- steps < step
+                #     steps = 5: input predicted frame 5 -> output predict 6
+                #     steps = 6: input predicted frame 6 -> output predict 7
+                #     steps = 7: input predicted frame 7 -> output predict 8
+                #     steps = 8: input predicted frame 8 -> output predict 9
+    
+                if steps <  step:
                     output = network.forward(test, free_mem)
-                    if ( steps == start_frame + step - 1 ):
-                        print('doing first prediction')
+                    #if ( steps == step - 1 ):
+                        #print('doing first prediction')
                 else:
-                    print('doing prediction')
+                    #print('doing prediction')
                     output = network.forward(previous_output, free_mem)
 
                 previous_output = output
 
-                #make_dot( output.mean(), params = dict(network.named_parameters() ) )
-                #exit()
-                # update buffer for storing latent feature
-                # buffer = buf_update( l_feature, buffer, step )
-
                 # Calculate loss
-                #loss = critiria( Variable(output.long()),  Variable(target.long()))
+                # loss = critiria( Variable(output.long()),  Variable(target.long()))
                 loss = critiria( output, target)
 
                 # record loss in to csv
                 loss_value =  float( loss.item() )
-                string = 'epoch_' + str(epochs) + '_batch_' + str(batch) + '_step_' + str(steps-start_frame)
+                string = 'epoch_' + str(epochs) + '_batch_' + str(batch) + '_step_' + str(steps)
                 loss_list.append( [ string, loss_value ])
 
-                # save img
+                # write training loss to tensorboard
+                writer.add_scalar("train loss", loss.item(), epochs)
+                
+                # save img every 50 epochs ( 800 iteration ) 
                 if save_img == True or float(loss_value) > 400:
                     if ( (epochs + 1) % 50 == 0) or ( epochs == 0 ) or ( (epochs+1) == ( start_epoch + epoch_num) ):
                         if steps % 1 == 0:
                             output_img = tensor_to_pic(output, normalize=False, gray_scale=gray_scale_bol, size_index = size_idx)
-                            output_img_name = output_path + str(start_date) + '_E' + str(epochs) + '_B'+ str(batch).zfill(2) + '_S'+ str(steps-start_frame).zfill(2) +'_output.jpg'
+                            output_img_name = output_path + str(start_date) + '_E' + str(epochs) + '_B'+ str(batch).zfill(2) + '_S'+ str(steps).zfill(2) +'_output.jpg'
                             cv.imwrite(str(output_img_name), output_img)
 
                 # Backward propagation
                 loss.backward(retain_graph = True)
-
+                
+                # speed counter
                 end_time = time.time()
                 elapse_time = round((end_time - start_time), 2)
 
@@ -183,28 +245,29 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
                 # print memory used
                 process = psutil.Process(os.getpid())
 
-                print('epoch', epochs, 'batch', batch, 'step', steps-start_frame, "loss:", loss, 'time used', elapse_time, 'sec')
-                print('used memory', round((int(process.memory_info().rss)/(1024*1024)), 2), 'MB' )
-                print("-------------------------------------")
+                if( epochs % 20 == 0 ):
+                    print('epoch', epochs, 'batch', batch, 'step', steps, "loss:", loss, 'time used', elapse_time, 'sec')
+                    print('used memory', round((int(process.memory_info().rss)/(1024*1024)), 2), 'MB' )
+                    print("-------------------------------------")
 
                 gc.collect()
 
-                #check_tensors()
-
                 if cuda_gpu:
                     torch.cuda.empty_cache()
-
+            
+            # return origin step size if extra step is performed
             if exception == True:
                step_size = step_size - 1 
                exception = False
-
+            # releae memory
             if cuda_gpu:
                 torch.cuda.empty_cache()
+
     # log loss after each epoch
     write_csv_file( output_path + start_date +'_loss_record.csv', loss_list )
-
-
-    if valadation == True:
+ 
+    # do validation (every 50 eopoch as default)
+    if validation == True:
         print("==== validatoin ====\n\n")
 
         for batch in range(0, len(val_dir_list)):
@@ -213,24 +276,27 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
             val_start = time.time()
             print(' ----batch{}----  '.format(batch))
             
-            for steps in range(0, step_size):
-                 test, target = load_pic( steps, new_frame_paths, gray_scale = gray_scale_bol, size_index = size_idx)
-                 test = test.to(device)
-                 target = target.cuda()
+            image_tesnors = frame_batch_loader(start_frame, new_frame_paths, step_size, gray_scale = gray_scale_bol, size_index = size_idx).to(device)
 
-                 if steps < start_frame + step:
+            for steps in range(0, step_size):
+                 test, target = image_tensors[steps], image_tensors[steps+1]
+
+                 if steps <  step:
                     output = network.forward(test, free_mem)
-                    
                  else:
                     output = network.forward(previous_output, free_mem)
 
                  previous_output = output
                  loss = critiria( output, target)
                  print('val: batch', batch, 'step', steps, "loss:", loss, '\n')
+                 # write validation loss to tensorboard
+                 writer.add_scalar("val loss", loss.item(), epochs)
+                 writer.flush()
+
             val_end = time.time()
             print('time used:', round(( val_end - val_start ),2))
 
-    # save model
+    # save model every 500 epochs
     if ( ( ( (epochs+1) % 500 ) == 0 ) or ((epochs+1) == ( start_epoch + epoch_num)) or ( (epochs+1)  == 1 ) ):
         path = output_path + start_date + 'epoch_' + str(epochs) +'_R_'+ str(step) + '_P_' + str(predict_frame_num) + '_size_idx_' + str(size_idx) +  '_R_Unet.pt'
         state = { 'epoch': epochs+1, 'state_dict': network.state_dict(), 'optimizer':optimizer.state_dict() }
@@ -240,4 +306,3 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
 
     if cuda_gpu:
         torch.cuda.empty_cache()
-
