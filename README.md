@@ -4,7 +4,10 @@ This is a on going project applying recurrent method upon U-net to perform pixel
 # Brief introduction
 Taking advantage of LSTM and U-net encode-decoder, we wish to be able in predicting next (n) frame(s). </br>
 Currently using a 2 layer LSTM network (V1) or convolution LSTM (V2) as RNN network applying on latent feature of U net </br>
-Now we are training with our latest v4 model and compare with v2.</br>
+In our latest v4 model, we use convolutional LSTM in each level and take short cut in v2 out</br>
+
+On the other hand, we are now using v4_mask model to train mask, image input and mask, image prediction output</br>
+This model holds same structure as v4 but simply change output layer to output mask tensor. </br>
 
 Our model (V2) currently on kth dataset outperforms Alex X. Lee et al. [1] upon PSNR and VGG cosine similarity evaluation matrics
 Also on kitti dataset outperforms Ruben V. et al. [2] upen SSIM and VGG cosine similarity evaluation matrics </br>
@@ -37,14 +40,17 @@ Current we are working on a better model using convolution lstm, name as runet_v
 
 # Some result
 prediction:
- ![alt_text](https://github.com/vagr8/R_Unet/blob/master/kitti%20prediction.gif) 
-Ground truth:
- ![alt_text](https://github.com/vagr8/R_Unet/blob/master/kitti_GT.gif)
-<br>
-prediction:
  ![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/4_24000val.gif) 
 Ground truth:
  ![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/4_24000val_gt.gif)
+</br>
+mask prediction
+</br>
+prediction:
+ ![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/mask%206000%20gt.gif) 
+Ground truth:
+ ![alt_text](https://github.com/vagr8/R_Unet/blob/master/kitti_GT.gif)
+<br>
 
 
 # References
