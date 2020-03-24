@@ -30,10 +30,10 @@ Current we are working on a better model using convolution lstm, name as runet_v
 ![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v1.jpg) </br> </br>
 
 * model v2:</br>
-![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v2.png) </br> </br>
+![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/runet_v2.0_std.png) </br> </br>
 
 * model v4:</br>
-![alt_text](https://github.com/vagr8/R_Unet/blob/master/runet_v4_a.png) 
+![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/runet_v4_a.png) 
 </br>
 </br>
 
@@ -49,7 +49,7 @@ mask prediction
 prediction:
  ![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/mask%206000%20gt.gif) 
 Ground truth:
- ![alt_text](https://github.com/vagr8/R_Unet/blob/master/kitti_GT.gif)
+ ![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/mask%206000.gif)
 <br>
 
 
