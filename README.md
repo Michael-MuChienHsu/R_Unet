@@ -9,9 +9,6 @@ In our latest v4 model, we use convolutional LSTM in each level and take short c
 On the other hand, we are now using v4_mask model to train mask, image input and mask, image prediction output</br>
 This model holds same structure as v4 but simply change output layer to output mask tensor. </br>
 
-Our model (V2) currently on kth dataset outperforms Alex X. Lee et al. [1] upon PSNR and VGG cosine similarity evaluation matrics
-Also on kitti dataset outperforms Ruben V. et al. [2] upen SSIM and VGG cosine similarity evaluation matrics </br>
-
 # Usage
 * configuration: config.json </br>
 * parse configuration: class parse_arguement.py </br>
