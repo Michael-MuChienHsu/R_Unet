@@ -44,10 +44,11 @@ predict_frame_num = int(args.predict_frame)
 assert (os.path.isdir( output_path )) # check output path exist
 
 # if gpu exist, use cuda
-device = torch.device('cuda:0' if cuda_gpu else 'cpu')
+gpu_num = args.gpu
+device = torch.device('cuda:'+str(gpu_num) if cuda_gpu else 'cpu')
 
 # load network
-network = network_loader(version, gray_scale_bol, size_idx)
+network = network_loader(version, gray_scale_bol, size_idx, gpu_num)
 network = network.to(device)
 
 # set optimizer and Loss fuction
@@ -72,9 +73,9 @@ save_img = True
 
 # get lists of frame paths
 all_video_dir_list = get_video_dir_list(video_path)
-## set video 0-31 as training video and 32-40 as validation video
-video_dir_list = all_video_dir_list[0:32]
-val_dir_list = all_video_dir_list[32:40]
+
+video_dir_list = all_video_dir_list[0:160]
+val_dir_list = all_video_dir_list[160:180]
 
 # ste gpu, set data, check gpu, define network, 
 gpus = [0]
@@ -113,20 +114,11 @@ input("press enter to continue\n\n")
 
 print("==========================")
 
-
-'''
-In this code, 32 videos are used as training video, and for each epoch, we will randomly choose 16 video from video pool.
-Moreover, start point for each video is ramdomly choosed everytime when it is used. So it is impossiable to guarentee how 
-many epochs or batches it need to go through every training sequence. Although, here I use 'epoch' and ' batch' in training 
-stage, I don't think the idea 'epoch' is meaningful since training sequence for videos is hignly randomlized. As a consequence,
-I think the idea 'iteration' suits better for this usecase.
-'''
-
 for epochs in range(start_epoch, start_epoch + epoch_num):
     # randomly choose 16 videos from video pool as training video for this epoch 
     train_seq = np.random.permutation(train_video_num)[:16] # random train sequence
     train_video_size = len(train_seq)
-    print('epoch', epochs)
+    print('epoch_num', epochs, '/', start_epoch + epoch_num)
 
     # run validation every 50 epoches 
     if( (epochs) % 50 == 0 ):
@@ -152,7 +144,7 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
         #print ('current batch:', video_dir_list[ train_seq[batch] ] )
 
         avalible_len = len(new_frame_paths)
-        start_frame = np.random.randint(0, avalible_len - step_size - 1 )  # random start point
+        start_frame = np.random.randint(0, avalible_len - step_size - 2 )  # random start point
 
         # ensure there remains enough frame for training after random start point is set
         if avalible_len - start_frame < step_size:
@@ -171,11 +163,11 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
                    
             for steps in range(0, step_size):
 
-                # free_mem is a token to tell model to release memory for storing buffer, however it is not used currently.
+                # init_lstm_token is a token to tell model to initiallize lstm internal state or not, we should initilize internal state at start of each batch.
                 if (steps == 0):
-                    free_mem = True
+                    init_lstm_token = True
                 else:
-                    free_mem = False
+                    init_lstm_token = False
 
                 #print("epoch", epochs, "steps", steps)
                 # Clear the gradients, since PyTorch accumulates them
@@ -203,12 +195,12 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
                 #     steps = 8: input predicted frame 8 -> output predict 9
     
                 if steps <  step:
-                    output = network.forward(test, free_mem)
+                    output = network.forward(test, init_lstm_token)
                     #if ( steps == step - 1 ):
                         #print('doing first prediction')
                 else:
                     #print('doing prediction')
-                    output = network.forward(previous_output, free_mem)
+                    output = network.forward(previous_output, init_lstm_token)
 
                 previous_output = output
 
@@ -224,7 +216,7 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
                 # write training loss to tensorboard
                 writer.add_scalar("train loss", loss.item(), epochs)
                 
-                # save img every 50 epochs ( 800 iteration ) 
+                # save img every 50 epochs ( 800 iterations ) 
                 if save_img == True or float(loss_value) > 400:
                     if ( (epochs + 1) % 50 == 0) or ( epochs == 0 ) or ( (epochs+1) == ( start_epoch + epoch_num) ):
                         if steps % 1 == 0:
@@ -235,12 +227,12 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
                 # Backward propagation
                 loss.backward(retain_graph = True)
                 
+                # Update the gradients
+                optimizer.step()
+
                 # speed counter
                 end_time = time.time()
                 elapse_time = round((end_time - start_time), 2)
-
-                # Update the gradients
-                optimizer.step()
 
                 # print memory used
                 process = psutil.Process(os.getpid())
@@ -268,7 +260,7 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
  
     # do validation (every 50 eopoch as default)
     if validation == True:
-        print("==== validatoin ====\n\n")
+        print("==== validation ====\n\n")
 
         for batch in range(0, len(val_dir_list)):
             frame_paths = get_file_path( val_dir_list[batch] )  
@@ -276,15 +268,21 @@ for epochs in range(start_epoch, start_epoch + epoch_num):
             val_start = time.time()
             print(' ----batch{}----  '.format(batch))
             
+            start_frame = 3
             image_tesnors = frame_batch_loader(start_frame, new_frame_paths, step_size, gray_scale = gray_scale_bol, size_index = size_idx).to(device)
 
             for steps in range(0, step_size):
                  test, target = image_tensors[steps], image_tensors[steps+1]
 
-                 if steps <  step:
-                    output = network.forward(test, free_mem)
+                 if steps == 0:
+                     init_lstm_token = True
                  else:
-                    output = network.forward(previous_output, free_mem)
+                     init_lstm_token = False
+
+                 if steps <  step:
+                    output = network.forward(test, init_lstm_token)
+                 else:
+                    output = network.forward(previous_output, init_lstm_token)
 
                  previous_output = output
                  loss = critiria( output, target)
