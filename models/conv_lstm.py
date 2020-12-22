@@ -1,16 +1,23 @@
 import torch
 import numpy as np
+import os
 import torch.nn as nn
 from torch.autograd import Variable
 
 
 class ConvLSTMCell(nn.Module):
-    def __init__(self, input_channels, hidden_channels, kernel_size):
+    def __init__(self, input_channels, hidden_channels, kernel_size, gpu_num):
         super(ConvLSTMCell, self).__init__()
 
         assert hidden_channels % 2 == 0
         use_cuda = torch.cuda.is_available()
-        self.device = torch.device("cuda" if use_cuda else "cpu")
+
+        #gpu_num = 1
+
+        torch.cuda.set_device(gpu_num)
+        os.environ["CUDA_VISIBLE_DEVICE"] = str(gpu_num)
+        self.device = torch.device('cuda:'+str(gpu_num) if use_cuda else 'cpu')
+        #self.device = torch.device("cuda" if use_cuda else "cpu")
 
         self.input_channels = input_channels
         self.hidden_channels = hidden_channels
@@ -40,6 +47,7 @@ class ConvLSTMCell(nn.Module):
         ch = co * torch.tanh(cc)
         return ch, cc
 
+    ## initialize h and c internal state only, keep weight mask the same 
     def init_hidden(self, batch_size, hidden, shape):
         if self.Wci is None:
             self.Wci = Variable(torch.zeros(1, hidden, shape[0], shape[1])).to(self.device)
@@ -55,7 +63,7 @@ class ConvLSTMCell(nn.Module):
 class ConvLSTM(nn.Module):
     # input_channels corresponds to the first input feature map
     # hidden state is a list of succeeding lstm layers.
-    def __init__(self, input_channels, hidden_channels, kernel_size, step=1, effective_step=[1]):
+    def __init__(self, input_channels, hidden_channels, kernel_size, step = 1, effective_step=[1], gpu_num=0):
         super(ConvLSTM, self).__init__()
         self.input_channels = [input_channels] + hidden_channels
         self.hidden_channels = hidden_channels
@@ -64,33 +72,47 @@ class ConvLSTM(nn.Module):
         self.step = step
         self.effective_step = effective_step
         self._all_layers = []
+
+        #self.internal_state = []
+
+        #gpu_num = 1
+        torch.cuda.set_device(gpu_num)
+        os.environ["CUDA_VISIBLE_DEVICE"] = str(gpu_num)
+        self.device = torch.device('cuda:'+str(gpu_num) if True else 'cpu')
+
+
         for i in range(self.num_layers):
             name = 'cell{}'.format(i)
-            cell = ConvLSTMCell(self.input_channels[i], self.hidden_channels[i], self.kernel_size)
+            cell = ConvLSTMCell(self.input_channels[i], self.hidden_channels[i], self.kernel_size, gpu_num).to(self.device)
             setattr(self, name, cell)
             self._all_layers.append(cell)
 
-    def forward(self, input):
-        internal_state = []
+    def forward(self, input, init_token = False):
+        
         outputs = []
-        for step in range(self.step):
-            x = input
+        if init_token == True:
+            self.internal_state = []
+
+        for step in range(1):
+            x = input         
+              
             for i in range(self.num_layers):
-                # all cells are initialized in the first step
                 name = 'cell{}'.format(i)
-                if step == 0:
+
+                # at first step of each video, pass init_token = True in, and initiallize internal states                
+                if step == 0 and init_token == True :
                     bsize, _, height, width = x.size()
                     (h, c) = getattr(self, name).init_hidden(batch_size=bsize, hidden=self.hidden_channels[i],
                                                              shape=(height, width))
-                    internal_state.append((h, c))
-
+                    self.internal_state.append((h, c))
+                
                 # do forward
-                (h, c) = internal_state[i]
+                (h, c) = self.internal_state[i]
                 x, new_c = getattr(self, name)(x, h, c)
-                internal_state[i] = (x, new_c)
-            # only record effective steps
-            if step in self.effective_step:
-                outputs.append(x)
+                self.internal_state[i] = (x, new_c)
+
+            # only record last output
+            outputs.append(x)
 
         return outputs
 
