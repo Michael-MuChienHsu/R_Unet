@@ -13,11 +13,7 @@ class conv_unit(nn.Sequential):
     def __init__(self, ch_in, ch_out):
         super(conv_unit, self).__init__()
         self.layer1 = self.define_layer1( ch_in, ch_out )
-        #self.layer2 = self.define_layer2( ch_in, ch_out )
-
         self.layer3 = self.define_layer1( ch_out, ch_out )
-        #self.layer4 = self.define_layer2( ch_out, ch_out )
-
         self.lamda1 = 0
         self.lamda2 = 0
 
@@ -62,11 +58,6 @@ class Up_Layer(nn.Sequential):
 
         self.lamda1 = 0
         self.lamda2 = 0
-
-        '''
-        self.lamda1 = np.random.rand()
-        self.lamda2 = np.random.rand()
-        '''
 
         self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
         # add 0 padding on right and down to keep shape the same
@@ -123,12 +114,6 @@ class Up_Layer0(nn.Sequential):
         self.lamda2 = 0
         self.lamda3 = 0
         self.lamda4 = 0
-        '''
-        self.lamda1 = np.random.rand()
-        self.lamda2 = np.random.rand()
-        self.lamda3 = np.random.rand()
-        self.lamda4 = np.random.rand()
-        '''
 
         self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
         # add 0 padding on right and down to keep shape the same
@@ -171,7 +156,7 @@ class Up_Layer0(nn.Sequential):
 
 
 class unet(nn.Module):
-    def __init__(self, tot_frame_num = 100, step_ = 6, predict_ = 3 ,Gary_Scale = False, size_index = 256):
+    def __init__(self, tot_frame_num = 100, step_ = 6, predict_ = 3 ,Gary_Scale = False, size_index = 256, gpu_num = 0):
         print("gray scale:", Gary_Scale)
         super( unet, self ).__init__()
         if size_index != 256:
@@ -190,19 +175,19 @@ class unet(nn.Module):
         self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
 
         self.convlstm1 = ConvLSTM(input_channels=512, hidden_channels=[512, 512, 512], kernel_size=3, step=3,
-                        effective_step=[2])
+                        effective_step=[2], gpu_num = gpu_num )
 
         self.convlstm2 = ConvLSTM(input_channels=384, hidden_channels=[384, 256, 128], kernel_size=3, step=3,
-                        effective_step=[2])
+                        effective_step=[2], gpu_num = gpu_num )
 
         self.convlstm3 = ConvLSTM(input_channels=224, hidden_channels=[224, 128, 32], kernel_size=3, step=3,
-                        effective_step=[2])
+                        effective_step=[2], gpu_num = gpu_num )
 
         self.convlstm4 = ConvLSTM(input_channels=120, hidden_channels=[120, 64, 8], kernel_size=3, step=3,
-                        effective_step=[2])
+                        effective_step=[2], gpu_num = gpu_num )
 
         self.convlstm5 = ConvLSTM(input_channels=62, hidden_channels=[62, 32, 2], kernel_size=3, step=3,
-                        effective_step=[2])
+                        effective_step=[2], gpu_num = gpu_num )
 
         if Gary_Scale == True:
             self.down1 = conv_unit(1, 62)
@@ -224,11 +209,7 @@ class unet(nn.Module):
         else:
             self.up5 = nn.Conv2d( 64, 3, kernel_size = 1 )
     
-    def forward(self, x, free_token, test_model = False):
-        self.free_token = free_token
-        if ( self.free_token == True ):
-            self.free_memory()
-
+    def forward(self, x, init_token, test_model = False):
         # pop oldest buffer
         if( len(self.lstm_buf) >= self.step):   
             self.lstm_buf = self.lstm_buf[1:]
@@ -249,33 +230,25 @@ class unet(nn.Module):
         x5 = self.down5(x5)
       
         latent_feature1 = x5.view(1, -1, int(16/self.resize_fraction), int(16/self.resize_fraction) )
-        lstm_output1 =  Variable(self.convlstm1(latent_feature1)[0])
+        lstm_output1 =  Variable(self.convlstm1(latent_feature1, init_token)[0])
 	
-        lstm_output2 =  Variable(self.convlstm2(x4)[0])
-        lstm_output3 =  Variable(self.convlstm3(x3)[0])
-        lstm_output4 =  Variable(self.convlstm4(x2)[0])
-        lstm_output5 =  Variable(self.convlstm5(x1)[0])
+        lstm_output2 =  Variable(self.convlstm2(x4, init_token )[0])
+        lstm_output3 =  Variable(self.convlstm3(x3, init_token )[0])
+        lstm_output4 =  Variable(self.convlstm4(x2, init_token )[0])
+        lstm_output5 =  Variable(self.convlstm5(x1, init_token )[0])
         
 
         x5 = torch.cat((x5, lstm_output1), dim = 1) 
-        #h = lstm_output.view(1, -1, x4.shape[2], x4.shape[3]) 
-        #x4 = self.one_conv4(x4)
 
         x4 = torch.cat((x4, lstm_output2), dim = 1) 
         x = self.up1( x5, x4 )
 
-        #h = lstm_output.view(1, -1, x3.shape[2], x3.shape[3]) 
-        #x3 = self.one_conv5(x3)
         x3 = torch.cat((x3, lstm_output3), dim = 1) 
         x = self.up2( x, x3 )
 
-        #h = lstm_output.view(1, -1, x2.shape[2], x2.shape[3]) 
-        #x2 = self.one_conv6(x2)
         x2 = torch.cat((x2, lstm_output4), dim = 1) 
         x = self.up3( x, x2 )
 
-        #h = lstm_output.view(1, -1, x1.shape[2], x1.shape[3]) 
-        #x1 = self.one_conv7(x1)
         x1 = torch.cat((x1, lstm_output5), dim = 1) 
         x = self.up4( x, x1 )
 
