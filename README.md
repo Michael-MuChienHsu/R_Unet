@@ -1,6 +1,6 @@
 # R_Unet
 This project applies recurrent method upon U-net to perform pixel level video frame prediction. </br>
-Part of our result is published at [IEEE GCCE 2020](https://ieeexplore.ieee.org/document/9292008) [pdf](https://www.ams.giti.waseda.ac.jp/data/pdf-files/2020_GCCE_hsu.pdf).</br>
+Part of our result is published at [IEEE GCCE 2020](https://ieeexplore.ieee.org/document/9292008). [pdf](https://www.ams.giti.waseda.ac.jp/data/pdf-files/2020_GCCE_hsu.pdf).</br>
 
 # Brief introduction
 Taking advantage of LSTM and U-net encode-decoder, we wish to be able in predicting next (n) frame(s). </br>
