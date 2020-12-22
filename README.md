@@ -31,7 +31,7 @@ Current we are working on a better model using convolution lstm, name as runet_v
 ![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/runet_v2.0_std.png) </br> </br>
 
 * model v4:</br>
-![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/runet_v4_a.png) 
+![alt_text](https://github.com/vagr8/R_Unet/blob/master/pics/v4_a.png) 
 </br>
 </br>
 
