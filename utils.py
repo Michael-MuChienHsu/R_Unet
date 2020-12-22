@@ -22,18 +22,6 @@ def reshape(img, gray_scale_r=False, size_idx = 256):
     else:
         return np.reshape(img, (1, size_idx, size_idx))
 
-
-'''
-squeeze image to [0, 1]
-'''
-
-# this is stupid 
-def pic_normalize(pic):
-    pic = np.asarray( pic, dtype=float )
-    pic = pic/256
-
-    return pic
-
 '''
 given a path, get all child directory from the path
 return sorted list
@@ -65,83 +53,48 @@ def get_file_path(video_path):
     return frame_paths
 
 '''
-f_num: index number for image
-f_path: list of all file(picture) path
+load pics in batch
 
-get number (f_num) and (f_num + 1) jps or png images as pair
-return test_pic, target_pic
-
-test_pic: : pytorch tensor, f_path[ f_num ]
-target_pic: : pytorch tensor, f_path[ f_num + 1 ]
 '''
-def load_pic(f_num, f_path, normalize = False, gray_scale = False, size_index = 256):
-    path_in = f_path[f_num]
-    path_target = f_path[f_num+1]
+# return step_size of 4 dimentional tensor, (5 dimentions in total)
+def frame_batch_loader(f_start_num, f_path, step_size, normalize = False, gray_scale = False, size_index = 256):
+    
+    for i in range(0, step_size+1):
+        if (i == 0):
+            tensor = read_single_pic( f_start_num, f_path, normalize, gray_scale, size_index )
+        else:
+            next_tensor = read_single_pic( f_start_num + i, f_path, normalize, gray_scale, size_index )
+            tensor = torch.cat( (tensor, next_tensor), dim = 0 )
+
+    return tensor
+
+
+# return 5 dimentional torch tensor
+def read_single_pic(f_num, f_path, normalize = False, gray_scale = False, size_index = 256):
+    if gray_scale:
+        pic = cv.imread(f_path[f_num], cv.IMREAD_GRAYSCALE)
+    else:
+        pic = cv.imread(f_path[f_num]).transpose(2, 0, 1)
+
+    if normalize:
+        pic = pic_normalize(pic)
+        
+    pic = torch.tensor( cv.resize(pic, (size_index, size_index), interpolation=cv.INTER_CUBIC ), dtype=torch.float)
 
     if gray_scale:
-        in_pic = cv.imread(path_in, cv.IMREAD_GRAYSCALE)
-        tar_pic = cv.imread(path_target, cv.IMREAD_GRAYSCALE)
+        pic = pic.view(1, 1, 1, size_index, size_index)
     else:
-        in_pic = cv.imread(path_in)
-        tar_pic = cv.imread(path_target)
+        pic = pic.view(1, 1, 3, size_index, size_index)
 
-    ## normalize pic for 0-256 to 0-1
-    if normalize:
-        in_pic = pic_normalize(in_pic)
-        tar_pic = pic_normalize(tar_pic)
-    
-    # resize to 256*256 and reshape to tensor
-    in_pic = torch.tensor( reshape( cv.resize(in_pic, (size_index, size_index), interpolation=cv.INTER_CUBIC ), gray_scale_r = gray_scale, size_idx = size_index ), dtype=torch.float )
-    tar_pic = torch.tensor( reshape( cv.resize(tar_pic, (size_index, size_index), interpolation=cv.INTER_CUBIC ), gray_scale_r = gray_scale, size_idx = size_index ), dtype=torch.float)
-    
-    if gray_scale == False:
-        input_pic = in_pic.view(1, 3, size_index, size_index)
-        target_pic = tar_pic.view(1, 3, size_index, size_index)
-    else:
-        input_pic = in_pic.view(1, 1, size_index, size_index)
-        target_pic = tar_pic.view(1, 1, size_index, size_index)
-     
-    return input_pic, target_pic
+    return(pic)
 
 '''
-better load pic method,
-old one simply reshape, this one moves channel from height, width, channel to channel, height, width
-for gray scale, its the same, but different for color image.
+FOR TRAINING PREDICTION AND SEGMENTATION AT THE SAME TIME
 '''
-def load_pic2(f_num, f_path, normalize = False, gray_scale = False, size_index = 256):
-    path_in = f_path[f_num]
-    path_target = f_path[f_num+1]
-
-    if gray_scale:
-        in_pic = cv.imread(path_in, cv.IMREAD_GRAYSCALE).transpose(2, 0, 1)
-        tar_pic = cv.imread(path_target, cv.IMREAD_GRAYSCALE).transpose(2, 0, 1)
-    else:
-        in_pic = cv.imread(path_in).transpose(2, 0, 1)
-        tar_pic = cv.imread(path_target).transpose(2, 0, 1)
-
-
-    ## normalize pic for 0-256 to 0-1
-    if normalize:
-        in_pic = pic_normalize(in_pic)
-        tar_pic = pic_normalize(tar_pic)
-    
-    # resize to 256*256 and reshape to tensor
-    in_pic = torch.tensor(  cv.resize(in_pic, (size_index, size_index), interpolation=cv.INTER_CUBIC ),  dtype=torch.float )
-    tar_pic = torch.tensor( cv.resize(tar_pic, (size_index, size_index), interpolation=cv.INTER_CUBIC ), dtype=torch.float)
-    
-    if gray_scale == False:
-        input_pic = in_pic.view(1, 3, size_index, size_index)
-        target_pic = tar_pic.view(1, 3, size_index, size_index)
-    else:
-        input_pic = in_pic.view(1, 1, size_index, size_index)
-        target_pic = tar_pic.view(1, 1, size_index, size_index)
-     
-    return input_pic, target_pic
-
 
 '''
 get f_num and f_num + 1 pytorch tensors
-
+for loading tensors, not for pic
 '''
 def batch_loader( start_num, frame_paths, step_size ):
     
@@ -153,6 +106,7 @@ def batch_loader( start_num, frame_paths, step_size ):
             tensor = torch.cat( ( tensor, next_tensor ), dim = 0 )
 
     return tensor
+
 
 def data_loader(f_num, f_path, gray_scale = False, size_index = 256):
     
@@ -179,29 +133,20 @@ def tensor_reshape(tensor, gray_scale = False, size_index = 256, imgflag = True)
         img = np.asarray(img, dtype=float)
 
     return img
-'''
-def merge_image(tensor, size_index = 128):
-    img =tensor_reshape(tensor[0][0], True, size_index)
-    mask = tensor_reshape(tensor[0][1], True, size_index, False)
-    img = cv.cvtColor(img, cv.COLOR_GRAY2BGR)
 
-
-    for i in range(0, size_index):
-        for j in range(0, size_index):
-            if mask[i][j] > 0.1:
-                img[i][j][2] = ( img[i][j][2] + int(255*mask[i][j]) ) / ( 1 + mask[i][j] ) 
-            
-    return img
-'''
-'''
-26 times faster than previous one
-'''
-
-def merge_image(tensor, size_index = 128):
-   
+def merge_image(tensor, size_index = 128, threshold = 0):
     img = tensor_reshape(tensor[0][0], True, size_index)
     mask = tensor[0][1].reshape( size_index, size_index ).clone().detach().cpu()
+
     mask = np.asarray( mask*255, dtype = np.uint8  )
+
+    mask_bol = (mask > int(threshold*255) )*1
+
+    if threshold == 0:
+        mask = mask*mask_bol
+    else:
+        mask = mask_bol*255
+
     img = cv.cvtColor(img, cv.COLOR_GRAY2BGR)     
 
     B, G, R = cv.split(img)
@@ -215,11 +160,19 @@ def merge_image(tensor, size_index = 128):
 
 
 '''
+tensoe to image
+'''
+def tensor_to_image(tensor, size_index = 128 ):
+    img = tensor_reshape(tensor[0][0], True, size_index)
+    return img
+
+'''
 input a mask tensor and visualize mask only on white background
 
 '''
-def mask_image(tensor, size_index = 128):
+def mask_image(tensor, size_index = 128, threshold = 0):
     mask = tensor.reshape(size_index, size_index, 1).clone().detach().cpu()
+    
     zero_mask1 = torch.zeros_like(mask)
     zero_mask2 = torch.zeros_like(mask)
         
@@ -233,28 +186,26 @@ def mask_image(tensor, size_index = 128):
 
     return img
 
-def tensor_to_image(tensor, size_index = 128):
-    img =tensor_reshape(tensor[0][0], True, size_index)
-    return img
-
 '''
 put mask on gray background
 '''
-def mask_image2(tensor, size_index = 128):
+def mask_image2(tensor, size_index = 128, threshold = 0):
     background_color = 100
     
-    mask = tensor.reshape(size_index, size_index, 1).clone().detach().cpu()
-    zero_mask1 = torch.zeros_like(mask)
-    zero_mask2 = torch.zeros_like(mask)
+    mask =  np.asarray( tensor.reshape(size_index, size_index).clone().detach().cpu(), dtype = float )
+
+    mask_bol = (mask > threshold )*1.0
     
-    mask = torch.cat( (zero_mask1, mask), dim = 2 )
-    mask = torch.cat( (zero_mask1, mask), dim = 2 ).numpy()
+    if threshold == 0:
+        mask = mask*mask_bol
+    else:
+        mask = mask_bol
+    
+    background = np.asarray(np.ones( (size_index, size_index), dtype=np.uint8 )*background_color, dtype = np.uint8)
 
-    background = np.ones( (size_index, size_index, 3), dtype=np.uint8 )*background_color 
+    R = np.asarray( background + mask*(255 - background_color), dtype = np.uint8 )
 
-    img = background + mask*(255 - background_color)
-
-    img = np.asarray( img, dtype = np.uint8 )
+    img = cv.merge( [background, background, R] )
 
     return img
 
@@ -310,6 +261,8 @@ def get_epoch_num( string1 ):
         if( num_flag == True ):
             if char in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '@']:
                 num = num + char
+                if i == str_len-1:
+                    return num 
             else:
                 return num
 
@@ -342,7 +295,12 @@ def load_checkpoint(model, optimizer, filename='checkpoint.pth.tar'):
             checkpoint = torch.load(filename)
 
         start_epoch = checkpoint['epoch']
-        model.load_state_dict(checkpoint['state_dict'])
+        new_state_dict = {}
+        for key, val in checkpoint['state_dict'].items():
+            key = key.replace('module.', '')
+            new_state_dict[key] = val
+        #model.load_state_dict(checkpoint['state_dict'])
+        model.load_state_dict(new_state_dict)
         optimizer.load_state_dict(checkpoint['optimizer'])
         print("=> loaded checkpoint '{}' (epoch {})"
                   .format(filename, checkpoint['epoch']))
@@ -363,39 +321,12 @@ def refresh_dir(path):
     print('make', path)
     os.mkdir(path)
 
-'''
-testing code
-now used yet
-
-'''
-def load_pic_test(f_num, f_path, normalize = False, gray_scale = False, size_index = 256):
-    path_in = f_path[f_num]
-
-    if gray_scale:
-        in_pic = cv.imread(path_in, cv.IMREAD_GRAYSCALE)
-    else:
-        in_pic = cv.imread(path_in)
-
-    ## normalize pic for 0-256 to 0-1
-    if normalize:
-        in_pic = pic_normalize(in_pic)
-    
-    # resize to 256*256 and reshape to tensor
-    in_pic = torch.tensor( reshape( cv.resize(in_pic, (size_index, size_index), interpolation=cv.INTER_CUBIC ), gray_scale_r = gray_scale, size_idx = size_index ), dtype=torch.float )
-    
-    if gray_scale == False:
-        input_pic = in_pic.view(1, 3, size_index, size_index)
-    else:
-        input_pic = in_pic.view(1, 1, size_index, size_index)
-     
-    return input_pic
-
-def network_loader(version,  gray_scale_bol, size_idx):
+def network_loader(version,  gray_scale_bol, size_idx, gpu_num):
     if version == 'v4' or version == 'V4':
         import R_Unet_ver_4 as net
 
     elif version == 'M' or version == 'M1' or version == 'm' or version == 'm1' :
-        import R_Unet_ver_M as net
+        import R_Unet_ver_MB as net
         
     elif version == 'M2' or version == 'm2':
         import R_Unet_ver_M2 as net
@@ -416,7 +347,8 @@ def network_loader(version,  gray_scale_bol, size_idx):
         print("please specify correct version.")
         exit()
 
-    network = torch.nn.DataParallel(net.unet(Gary_Scale = gray_scale_bol, size_index=size_idx))
+    network = net.unet(Gary_Scale = gray_scale_bol, size_index=size_idx, gpu_num=gpu_num)
+    #network = torch.nn.DataParallel(net.unet(Gary_Scale = gray_scale_bol, size_index=size_idx, gpu_num=gpu_num))
 
     return network
 
@@ -427,26 +359,3 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArguementTypeError('Wrong Value')
-
-## test
-if __name__ == "__main__":
-    frame_paths = []
-    for r, d, f in os.walk("./origami_single/"):
-        for file in f:
-            if ".jpg" in file:
-                filepath = "./origami_single/" + file
-                frame_paths.append(filepath)
-
-    # test gray scale
-    test, target = load_pic( 1, frame_paths, normalize=True, gray_scale=True, size_index=128 )
-    img = tensor_to_pic(test,normalize=True, gray_scale=True, size_index=128)
-    cv.imwrite('color_img.jpg', img)
-    cv.imshow('My Image', img)
-    cv.waitKey(0)
-
-    # test colorful img
-    test, target = load_pic( 1, frame_paths, normalize=True, gray_scale=False )
-    img = tensor_to_pic(test,normalize=True, gray_scale=False)
-    cv.imwrite('color_img.jpg', img)
-    cv.imshow('My Image', img)
-    cv.waitKey(0)
